@@ -1,3 +1,10 @@
+#MacOS file
+*.DS_Store
+
+# Data and Weight folder
+*data*
+*weight*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
