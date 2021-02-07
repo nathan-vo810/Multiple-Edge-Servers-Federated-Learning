@@ -2,6 +2,10 @@
 
 This repository contains the source code for Multiple Edge Servers Assignment for Local Device in Hierarchical Federated Learning
 
+## Getting Started
+Install PySyft to support Federated Learning. Follow the tutorial [here](https://pysyft.readthedocs.io/en/latest/installing.html)
+
+## Running The Code
 To run the code, go to terminal and type 
 For training: ```python3 main.py --mode=MODE --train``` 
 For validating: ```python3 main.py --mode=MODE --no-train```
