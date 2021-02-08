@@ -33,7 +33,7 @@ class FederatedTrainer:
 	
 	def load_data(self, train):
 		transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-		data = datasets.MNIST('./data', train=train, download=True, transform=transform)
+		data = datasets.MNIST('../data', train=train, download=True, transform=transform)
 		
 		return data
 
@@ -98,32 +98,61 @@ class FederatedTrainer:
 
 		data = self.load_data(train=train)
 
-		sorted_datasets = ConcatDataset([get_data_of_number(data, i) for i in range(10)])
-		
-		images = []
-		labels = []
+		data_by_class = [get_data_of_number(data, i) for i in range(10)]
+
+		workers_classes = {}
+		for number in range(10):
+			class_data = get_data_of_number(data, number)
+
+			receiving_worker = number%len(self.workers)
+			if receiving_worker not in workers_classes:
+				workers_classes[receiving_worker] = [class_data]
+			else:
+				workers_classes[receiving_worker].append(class_data)
+
+		for worker_number, worker_data in workers_classes.items():
+			workers_classes[worker_number] = DataLoader(ConcatDataset(worker_data), shuffle=True, batch_size=self.batch_size)
+
 
 		federated_non_iid_data = []
-
 		print("Distributing data...")
-		
-		for i in range(len(sorted_datasets)): 		    
-		    images.append(normalize(sorted_datasets[i][0]).unsqueeze(0))
-		    labels.append(sorted_datasets[i][1])
-		    
-		    if (i == len(sorted_datasets) - 1) or ((i+1) % 32 == 0) or (sorted_datasets[i][1] != sorted_datasets[i+1][1]):
-		        images = torch.stack(images)
-		        labels = torch.stack(labels)
-		        
-		        receiving_worker = self.workers[sorted_datasets[i][1] % len(self.workers)]
-		        federated_non_iid_data.append((images.send(receiving_worker), labels.send(receiving_worker)))
-
-		        images = []
-		        labels = []
-
+		for worker_number, worker_data in workers_classes.items():
+			print(f"Sending data to worker_{worker_number}")
+			worker = self.workers[worker_number]
+			for batch_idx, (images, labels) in enumerate(worker_data):
+				images = normalize(images).unsqueeze(1)
+				federated_non_iid_data.append((images.send(worker), labels.send(worker)))
 		print("Done!")
 
 		return federated_non_iid_data
+
+
+		# sorted_datasets = ConcatDataset([get_data_of_number(data, i) for i in range(10)])
+		
+		# images = []
+		# labels = []
+
+		# federated_non_iid_data = []
+
+		# print("Distributing data...")
+		
+		# for i in range(len(sorted_datasets)): 		    
+		#     images.append(normalize(sorted_datasets[i][0]).unsqueeze(0))
+		#     labels.append(sorted_datasets[i][1])
+		    
+		#     if (i == len(sorted_datasets) - 1) or ((i+1) % 32 == 0) or (sorted_datasets[i][1] != sorted_datasets[i+1][1]):
+		#         images = torch.stack(images)
+		#         labels = torch.stack(labels)
+		        
+		#         receiving_worker = self.workers[sorted_datasets[i][1] % len(self.workers)]
+		#         federated_non_iid_data.append((images.send(receiving_worker), labels.send(receiving_worker)))
+
+		#         images = []
+		#         labels = []
+
+		# print("Done!")
+
+		# return federated_non_iid_data
 
 	def prepare_data(self, train=False):
 		data = self.load_data(train=train)
@@ -138,6 +167,7 @@ class FederatedTrainer:
 			train_data = self.prepare_federated_iid_data(train=True)
 		else:
 			print("Train in Federated Non-IID Mode")
+			self.model.load_state_dict(torch.load(self.model_weight_path))
 			train_data = self.prepare_federated_non_iid_data(train=True)
 		
 		workers = list()
@@ -181,7 +211,7 @@ class FederatedTrainer:
 				self.model.get()
 
 		print("Saving model...")
-		torch.save(self.model.state_dict(), MODEL_WEIGHT_PATH)
+		torch.save(self.model.state_dict(), self.model_weight_path)
 		print("Finish training!")
 
 

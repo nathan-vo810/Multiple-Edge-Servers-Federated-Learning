@@ -5,8 +5,8 @@ from mnist_trainer import Trainer
 
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-3
-NUM_EPOCHS = 5
-MODEL_WEIGHT_PATH = "./weight.pth"
+NUM_EPOCHS = 20
+MODEL_WEIGHT_PATH = "../weight/weight.pth"
 
 NUM_WORKERS = 3
 
