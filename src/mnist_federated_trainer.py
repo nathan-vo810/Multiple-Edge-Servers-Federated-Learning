@@ -15,21 +15,26 @@ from mnist_model import Model
 
 
 class FederatedTrainer:
-	def __init__(self, batch_size, lr, num_epochs, model_weight_path, num_workers, iid):
+	def __init__(self, batch_size, lr, num_rounds, num_epochs, model_weight_path, num_workers, iid):
 		self.model = Model()
 		
 		self.lr = lr
 		self.batch_size = batch_size
+		self.num_rounds = num_rounds
 		self.num_epochs = num_epochs
 		self.model_weight_path = model_weight_path
 
 		self.workers = self.init_worker(num_workers)
+		self.secure_worker = self.init_secure_worker()
 
 		self.iid = iid
 
 	
 	def init_worker(self, num_workers):
-		return [syft.VirtualWorker(hook, id=f"worker_{i}") for i in range(num_workers)] 
+		return [syft.VirtualWorker(hook, id=f"worker_{i}") for i in range(num_workers)]
+
+	def init_secure_worker(self):
+		return syft.VirtualWorker(hook, id="secure_worker")
 	
 	def load_data(self, train):
 		transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
@@ -114,60 +119,118 @@ class FederatedTrainer:
 			workers_classes[worker_number] = DataLoader(ConcatDataset(worker_data), shuffle=True, batch_size=self.batch_size)
 
 
-		federated_non_iid_data = []
+		federated_non_iid_data = {}
+		for worker_number in range(len(self.workers)):
+			federated_non_iid_data[worker_number] = []
+
 		print("Distributing data...")
 		for worker_number, worker_data in workers_classes.items():
 			print(f"Sending data to worker_{worker_number}")
 			worker = self.workers[worker_number]
 			for batch_idx, (images, labels) in enumerate(worker_data):
 				images = normalize(images).unsqueeze(1)
-				federated_non_iid_data.append((images.send(worker), labels.send(worker)))
+				federated_non_iid_data[worker_number].append((images.send(worker), labels.send(worker)))
 		print("Done!")
 
 		return federated_non_iid_data
 
 
-		# sorted_datasets = ConcatDataset([get_data_of_number(data, i) for i in range(10)])
-		
-		# images = []
-		# labels = []
+	def train_parallel(self):
 
-		# federated_non_iid_data = []
+		'''
+		Train the model in parallel
+		Each worker will train on its own data for several epochs
+		Then, it sends the trained model to the secure worker for averaging the weight
+		The averaged weight is sent back to all the workers
+		This process repeats in several rounds
 
-		# print("Distributing data...")
-		
-		# for i in range(len(sorted_datasets)): 		    
-		#     images.append(normalize(sorted_datasets[i][0]).unsqueeze(0))
-		#     labels.append(sorted_datasets[i][1])
-		    
-		#     if (i == len(sorted_datasets) - 1) or ((i+1) % 32 == 0) or (sorted_datasets[i][1] != sorted_datasets[i+1][1]):
-		#         images = torch.stack(images)
-		#         labels = torch.stack(labels)
-		        
-		#         receiving_worker = self.workers[sorted_datasets[i][1] % len(self.workers)]
-		#         federated_non_iid_data.append((images.send(receiving_worker), labels.send(receiving_worker)))
+		'''
 
-		#         images = []
-		#         labels = []
+		def model_averaging(local_models):
+			with torch.no_grad():
+				averaged_values = {}
+				for name, param in self.model.named_parameters():
+					averaged_values[name] = nn.Parameter(torch.zeros_like(param.data))
 
-		# print("Done!")
+				for local_model in local_models:
+					for name, local_param in local_model.named_parameters():
+						averaged_values[name] += local_param.get().data
 
-		# return federated_non_iid_data
+				for name, param in self.model.named_parameters():
+					param.data = (averaged_values[name]/len(local_models))
 
-	def prepare_data(self, train=False):
-		data = self.load_data(train=train)
-		data_loader = DataLoader(data, batch_size=self.batch_size, shuffle=True)
+		def create_local_models():
+			worker_models = []
+			worker_optims = []
+			worker_criterions = []
+			worker_losses = []
 
-		return data_loader
+			for i in range(len(self.workers)):
+				model_clone = self.model.copy()
 
-	def train(self):
+				worker_models.append(model_clone)
+				worker_optims.append(optim.Adam(model_clone.parameters(), lr=self.lr))
+				worker_criterions.append(nn.CrossEntropyLoss())
+
+			return worker_models, worker_optims, worker_criterions, worker_losses
 
 		if self.iid == True:
 			print("Train in Federated IID Mode")
 			train_data = self.prepare_federated_iid_data(train=True)
 		else:
 			print("Train in Federated Non-IID Mode")
-			self.model.load_state_dict(torch.load(self.model_weight_path))
+			train_data = self.prepare_federated_non_iid_data(train=True)
+
+		print("Start training...")
+
+		for round_iter in range(self.num_rounds):
+			print(f"Round {round_iter+1}/{self.num_rounds}")
+			worker_models, worker_optims, worker_criterions, worker_losses = create_local_models()
+
+			# Train each worker with its own local data
+			for i in range(len(worker_models)):
+				print(f"Training worker_{i}")
+
+				# Send model to worker
+				worker_models[i] = worker_models[i].send(self.workers[i])
+
+				# Train worker's model
+				for epoch in range(self.num_epochs):
+					print(f"Epoch {epoch+1}/{self.num_epochs}")
+					for batch_idx, (images, labels) in enumerate(train_data[i]):
+						if (batch_idx+1)%100==0:
+							print(f"Processed {batch_idx+1}/{len(train_data[i])} batches")
+
+						worker_optims[i].zero_grad()
+						output = worker_models[i].forward(images)
+						loss = worker_criterions[i](output, labels)
+						loss.backward()
+						worker_optims[i].step()
+
+				# Get back the trained model (move to the secure aggregation)
+				worker_models[i].move(self.secure_worker)
+
+			# Average all the local models
+			model_averaging(worker_models)
+
+		print("Saving model...")
+		torch.save(self.model.state_dict(), self.model_weight_path)
+		print("Finish training!")
+
+	def train(self):
+
+		'''
+		The global model is sent to the worker that contains the data batch
+		The local worker trains the model with that data batch
+		The local worker sends back the trained model
+		This process repeat for all the data for several epochs
+		'''
+
+		if self.iid == True:
+			print("Train in Federated IID Mode")
+			train_data = self.prepare_federated_iid_data(train=True)
+		else:
+			print("Train in Federated Non-IID Mode")
 			train_data = self.prepare_federated_non_iid_data(train=True)
 		
 		workers = list()
@@ -175,13 +238,10 @@ class FederatedTrainer:
 			workers.append(worker.id)
 		
 		optimizer = optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.999), weight_decay=5e-4)
-		# optimizer = optimizer.fix_precision()
 		optims = Optims(workers, optim=optimizer)
 		criterion = nn.CrossEntropyLoss()
 
 		print("Start training...")
-
-		# self.model.fix_precision().share(*self.workers)
 
 		for epoch in range(self.num_epochs):
 			self.model.train()
@@ -201,8 +261,6 @@ class FederatedTrainer:
 				output = self.model(images)
 				
 				loss = criterion(output, labels)
-				# batch_size = output.shape[0]
-				# loss = ((output - target)**2).sum().refresh()/self.batch_size
 
 				loss.backward()
 				opt.step()

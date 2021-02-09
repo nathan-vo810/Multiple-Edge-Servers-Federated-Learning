@@ -4,8 +4,9 @@ from mnist_federated_trainer import FederatedTrainer
 from mnist_trainer import Trainer
 
 BATCH_SIZE = 32
-LEARNING_RATE = 1e-3
-NUM_EPOCHS = 20
+LEARNING_RATE = 3e-4
+NUM_ROUNDS = 3
+NUM_EPOCHS = 5
 MODEL_WEIGHT_PATH = "../weight/weight.pth"
 
 NUM_WORKERS = 3
@@ -32,12 +33,12 @@ def main(args):
 	if args.mode == 'normal':
 		trainer = Trainer(BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, MODEL_WEIGHT_PATH)
 	elif args.mode == 'federated-iid':
-		trainer = FederatedTrainer(BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, MODEL_WEIGHT_PATH, NUM_WORKERS, iid=True)
+		trainer = FederatedTrainer(BATCH_SIZE, LEARNING_RATE, NUM_ROUNDS, NUM_EPOCHS, MODEL_WEIGHT_PATH, NUM_WORKERS, iid=True)
 	else:
-		trainer = FederatedTrainer(BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, MODEL_WEIGHT_PATH, NUM_WORKERS, iid=False)
+		trainer = FederatedTrainer(BATCH_SIZE, LEARNING_RATE, NUM_ROUNDS, NUM_EPOCHS, MODEL_WEIGHT_PATH, NUM_WORKERS, iid=False)
 
 	if t_or_f(args.train):		
-		trainer.train()
+		trainer.train_parallel()
 
 	trainer.validate()
 
