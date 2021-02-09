@@ -1,37 +1,30 @@
+import os
+
 import torch
 import torch.nn.functional as F
 from torch import nn, optim
-from torchvision import datasets, transforms
-from torch.utils.data import TensorDataset, DataLoader, ConcatDataset
 
 from mnist_model import Model
+from mnist_data_loader import MNIST_DataLoader
 
 torch.manual_seed(1)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Trainer:
-	def __init__(self, batch_size, lr, num_epochs, model_weight_path):
+	def __init__(self, batch_size, lr, num_epochs, model_weight_dir):
 		self.model = Model().to(device)
+		self.data_loader = MNIST_DataLoader(batch_size, workers=None)
 		
 		self.lr = lr
 		self.batch_size = batch_size
 		self.num_epochs = num_epochs
-		self.model_weight_path = model_weight_path
-
-
-	def prepare_data(self, train=True):
-		transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-		data = datasets.MNIST('./data', train=train, download=True, transform=transform)
-
-		data_loader = DataLoader(data, batch_size=self.batch_size, shuffle=True)
-
-		return data_loader
+		self.model_weight_dir = model_weight_dir
 
 
 	def train(self):
 		print("Train in Normal Mode")
 
-		train_data = self.prepare_data(train=True)
+		train_data = self.data_loader.prepare_data(train=True)
 		
 		optimizer = optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.999), weight_decay=5e-4)
 		criterion = nn.CrossEntropyLoss()
@@ -57,24 +50,27 @@ class Trainer:
 				running_loss += loss.item()
 
 		print("Saving model...")
-		torch.save(self.model.state_dict(), MODEL_WEIGHT_PATH)
+		if not os.path.exists(self.model_weight_dir):
+			os.makedirs(self.model_weight_dir)
+		torch.save(self.model.state_dict(), self.model_weight_dir + "/weight.pth")
 		print("Finish training!")
 
 	def validate(self):
+		print("-----------------------------------------")
 		print("Start validating...")
-		self.model.load_state_dict(torch.load(self.model_weight_path))
+		self.model.load_state_dict(torch.load(self.model_weight_dir + "/weight.pth"))
 		self.model.eval()
 		corrects = 0
 
-		test_data = self.prepare_data(train=False)
+		test_data = self.data_loader.prepare_data(train=False)
 
 		with torch.no_grad():
 			for batch_idx, (images, labels) in enumerate(test_data):
 				images, labels = images.to(device), labels.to(device)
-				print("Predicting batch {}/{}".format(batch_idx+1, len(test_data)))
 				output = self.model(images)
 				pred = output.argmax(dim=1)
 				corrects += pred.eq(labels.view_as(pred)).sum().item()
 
 		print("Number of corrects: {}/{}".format(corrects, len(test_data)*self.batch_size))
 		print("Accuracy: {}%".format(100*corrects/(len(test_data)*self.batch_size)))
+		print("-----------------------------------------")
