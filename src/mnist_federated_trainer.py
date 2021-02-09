@@ -13,9 +13,8 @@ from syft.federated.floptimizer import Optims
 
 from mnist_model import Model
 
-use_cuda = torch.cuda.is_available()
 torch.manual_seed(1)
-device = torch.device("cuda" if use_cuda else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class FederatedTrainer:
 	def __init__(self, batch_size, lr, num_rounds, num_epochs, model_weight_path, num_workers, iid):
@@ -295,6 +294,7 @@ class FederatedTrainer:
 
 		with torch.no_grad():
 			for batch_idx, (images, labels) in enumerate(test_data):
+				images, labels = images.to(device), labels.to(device)
 				print("Predicting batch {}/{}".format(batch_idx+1, len(test_data)))
 				output = self.model(images)
 				pred = output.argmax(dim=1)

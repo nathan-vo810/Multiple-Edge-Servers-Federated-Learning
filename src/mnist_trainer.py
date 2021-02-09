@@ -6,10 +6,12 @@ from torch.utils.data import TensorDataset, DataLoader, ConcatDataset
 
 from mnist_model import Model
 
+torch.manual_seed(1)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Trainer:
 	def __init__(self, batch_size, lr, num_epochs, model_weight_path):
-		self.model = Model()
+		self.model = Model().to(device)
 		
 		self.lr = lr
 		self.batch_size = batch_size
@@ -41,6 +43,7 @@ class Trainer:
 
 			running_loss = 0
 			for batch_idx, (images, labels) in enumerate(train_data):
+				images, labels = images.to(device), labels.to(device)
 				if batch_idx % 100 == 0: 
 					print("Processed {}/{} batches".format(batch_idx, len(train_data)))
 
@@ -67,6 +70,7 @@ class Trainer:
 
 		with torch.no_grad():
 			for batch_idx, (images, labels) in enumerate(test_data):
+				images, labels = images.to(device), labels.to(device)
 				print("Predicting batch {}/{}".format(batch_idx+1, len(test_data)))
 				output = self.model(images)
 				pred = output.argmax(dim=1)
