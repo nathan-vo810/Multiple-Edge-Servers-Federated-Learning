@@ -134,6 +134,12 @@ class FederatedTrainer:
 
 		return federated_non_iid_data
 
+	def prepare_data(self, train=True):
+		data = self.load_data(train=train)
+		data_loader = DataLoader(data, batch_size=self.batch_size, shuffle=True)
+
+		return data_loader
+
 
 	def train_parallel(self):
 
