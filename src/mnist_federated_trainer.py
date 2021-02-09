@@ -13,10 +13,13 @@ from syft.federated.floptimizer import Optims
 
 from mnist_model import Model
 
+use_cuda = torch.cuda.is_available()
+torch.manual_seed(1)
+device = torch.device("cuda" if use_cuda else "cpu")
 
 class FederatedTrainer:
 	def __init__(self, batch_size, lr, num_rounds, num_epochs, model_weight_path, num_workers, iid):
-		self.model = Model()
+		self.model = Model().to(device)
 		
 		self.lr = lr
 		self.batch_size = batch_size
@@ -204,6 +207,9 @@ class FederatedTrainer:
 				for epoch in range(self.num_epochs):
 					print(f"Epoch {epoch+1}/{self.num_epochs}")
 					for batch_idx, (images, labels) in enumerate(train_data[i]):
+						
+						images, labels = images.to(device), labels.to(device)
+
 						if (batch_idx+1)%100==0:
 							print(f"Processed {batch_idx+1}/{len(train_data[i])} batches")
 
