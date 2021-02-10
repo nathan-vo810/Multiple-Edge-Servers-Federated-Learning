@@ -99,7 +99,7 @@ class FederatedTrainer:
 				model_clone = self.model.copy()
 
 				worker_models.append(model_clone)
-				worker_optims.append(optim.Adam(model_clone.parameters(), lr=self.lr))
+				worker_optims.append(optim.SGD(model_clone.parameters(), lr=self.lr))
 				worker_criterions.append(nn.CrossEntropyLoss())
 
 			return worker_models, worker_optims, worker_criterions, worker_losses
@@ -124,12 +124,12 @@ class FederatedTrainer:
 
 				# Train worker's model
 				for epoch in range(self.num_epochs):
-					print(f"Worker_{i} - Round {round_iter+1}/{self.num_rounds} - Epoch {epoch+1}/{self.num_epochs}")
+					print(f"Round {round_iter+1}/{self.num_rounds} - Worker {i+1}/{len(self.workers)} - Epoch {epoch+1}/{self.num_epochs}")
 					for batch_idx, (images, labels) in enumerate(train_data[i]):
 						
 						images, labels = images.to(device), labels.to(device)
 
-						if (batch_idx+1)%100==0:
+						if (batch_idx+1)%300==0:
 							print(f"Processed {batch_idx+1}/{len(train_data[i])} batches")
 
 						worker_optims[i].zero_grad()
@@ -168,7 +168,7 @@ class FederatedTrainer:
 		for worker in self.workers:
 			workers.append(worker.id)
 		
-		optimizer = optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.999), weight_decay=5e-4)
+		optimizer = optim.SGD(self.model.parameters(), lr=self.lr)
 		optims = Optims(workers, optim=optimizer)
 		criterion = nn.CrossEntropyLoss()
 
@@ -184,10 +184,12 @@ class FederatedTrainer:
 				self.model = self.model.send(images.location)
 				opt = optims.get_optim(images.location.id)
 
-				if batch_idx % 300 == 0: 
-					print("Processed {}/{} batches".format(batch_idx, len(train_data)))
+				if (batch_idx+1) % 300 == 0: 
+					print("Processed {}/{} batches".format(batch_idx+1, len(train_data)))
 
 				optimizer.zero_grad()
+
+				images, labels = images.to(device), labels.to(device)
 
 				output = self.model(images)
 				
@@ -204,7 +206,7 @@ class FederatedTrainer:
 		self.save_model()
 
 
-	def validate(self, load_weight):
+	def validate(self, load_weight=False):
 		print("-----------------------------------------")
 		print("Start validating...")
 

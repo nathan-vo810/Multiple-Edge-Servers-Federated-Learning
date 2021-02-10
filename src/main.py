@@ -5,8 +5,8 @@ from mnist_trainer import Trainer
 
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-3
-NUM_ROUNDS = 1
-NUM_EPOCHS = 1
+NUM_ROUNDS = 0
+NUM_EPOCHS = 0
 MODEL_WEIGHT_DIR = "../weight"
 
 NUM_WORKERS = 3
@@ -40,7 +40,7 @@ def main(args):
 	if t_or_f(args.train):		
 		trainer.train()
 
-	trainer.validate(load_weight=False)
+	trainer.validate(load_weight=True)
 
 if __name__ == '__main__':
 	main(parse_args())

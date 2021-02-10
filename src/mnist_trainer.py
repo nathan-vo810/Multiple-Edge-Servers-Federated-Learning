@@ -26,7 +26,7 @@ class Trainer:
 
 		train_data = self.data_loader.prepare_data(train=True)
 		
-		optimizer = optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.999), weight_decay=5e-4)
+		optimizer = optim.SGD(self.model.parameters(), lr=self.lr)
 		criterion = nn.CrossEntropyLoss()
 
 		print("Start training...")
@@ -37,8 +37,8 @@ class Trainer:
 			running_loss = 0
 			for batch_idx, (images, labels) in enumerate(train_data):
 				images, labels = images.to(device), labels.to(device)
-				if batch_idx % 100 == 0: 
-					print("Processed {}/{} batches".format(batch_idx, len(train_data)))
+				if (batch_idx+1) % 100 == 0: 
+					print("Processed {}/{} batches".format(batch_idx+1, len(train_data)))
 
 				optimizer.zero_grad()
 
@@ -52,13 +52,16 @@ class Trainer:
 		print("Saving model...")
 		if not os.path.exists(self.model_weight_dir):
 			os.makedirs(self.model_weight_dir)
-		torch.save(self.model.state_dict(), self.model_weight_dir + "/weight.pth")
+		torch.save(self.model.state_dict(), self.model_weight_dir + f"/weight.pth")
 		print("Finish training!")
 
-	def validate(self):
+	def validate(self, load_weight=False):
 		print("-----------------------------------------")
 		print("Start validating...")
-		self.model.load_state_dict(torch.load(self.model_weight_dir + "/weight.pth"))
+		
+		if load_weight == True:
+			self.model.load_state_dict(torch.load(self.model_weight_dir + "/weight.pth"))
+		
 		self.model.eval()
 		corrects = 0
 
