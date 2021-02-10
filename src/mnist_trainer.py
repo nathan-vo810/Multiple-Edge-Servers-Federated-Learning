@@ -65,7 +65,7 @@ class Trainer:
 		self.model.eval()
 		corrects = 0
 
-		test_data = self.data_loader.prepare_data(train=False)
+		test_data = self.data_loader.test_data
 
 		with torch.no_grad():
 			for batch_idx, (images, labels) in enumerate(test_data):

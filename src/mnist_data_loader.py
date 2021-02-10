@@ -7,7 +7,7 @@ from torch.utils.data import TensorDataset, DataLoader, ConcatDataset
 class MNIST_DataLoader:
 	def __init__(self, batch_size, workers):
 		self.train_data = self.load_data(train=True)
-		self.test_data = self.load_data(train=False)
+		self.test_data = DataLoader(self.load_data(train=False), batch_size=batch_size, shuffle=True)
 
 		self.batch_size = batch_size
 		self.workers = workers
