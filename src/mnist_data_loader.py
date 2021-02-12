@@ -123,52 +123,17 @@ class MNIST_DataLoader:
 		return federated_non_iid_data
 
 
-	def prepare_federated_non_iid_data_parallel(self, train=True):
-
-		'''
-		Sort data
-		Distribute the classes to workers
-		Each worker holds the complete data of a class
-		'''
-
-		def get_data_of_number(data, number):
-			indices = (data.targets == number).int()
-
-			images = data.data[indices == 1]
-			labels = data.targets[indices == 1]
-
-			return TensorDataset(images, labels)
-
+	def _distribute_data(self, workers_data):
+		
 		def normalize(x, mean=0.1307, std=0.3081):
 			return (x-mean)/std
-
-		if train == True:
-			data = self.train_data
-		else:
-			data = self.test_data
-
-		data_by_class = [get_data_of_number(data, i) for i in range(10)]
-
-		workers_classes = {}
-		for number in range(10):
-			class_data = get_data_of_number(data, number)
-
-			receiving_worker = number%len(self.workers)
-			if receiving_worker not in workers_classes:
-				workers_classes[receiving_worker] = [class_data]
-			else:
-				workers_classes[receiving_worker].append(class_data)
-
-		for worker_number, worker_data in workers_classes.items():
-			workers_classes[worker_number] = DataLoader(ConcatDataset(worker_data), shuffle=True, batch_size=self.batch_size)
-
 
 		federated_non_iid_data = {}
 		for worker_number in range(len(self.workers)):
 			federated_non_iid_data[worker_number] = []
 
 		print("Distributing data...")
-		for worker_number, worker_data in workers_classes.items():
+		for worker_number, worker_data in workers_data.items():
 			print(f"Sending data to worker_{worker_number}")
 			worker = self.workers[worker_number]
 			for batch_idx, (images, labels) in enumerate(worker_data):
@@ -178,6 +143,98 @@ class MNIST_DataLoader:
 
 		return federated_non_iid_data
 
+
+	def prepare_federated_non_iid_data_parallel(self, train=True):
+
+		'''
+		Sort data
+		Distribute the classes to workers
+		Each worker holds the complete data of a class
+		'''
+
+		def get_data_of_number(self, data, number):
+			indices = (data.targets == number).int()
+
+			images = data.data[indices == 1]
+			labels = data.targets[indices == 1]
+
+			return TensorDataset(images, labels)
+
+		if train == True:
+			data = self.train_data
+		else:
+			data = self.test_data
+
+		workers_data = {}
+		for number in range(10):
+			class_data = get_data_of_number(data, number)
+
+			receiving_worker = number%len(self.workers)
+			if receiving_worker not in workers_data:
+				workers_data[receiving_worker] = [class_data]
+			else:
+				workers_data[receiving_worker].append(class_data)
+
+		for worker_number, worker_data in workers_data.items():
+			workers_data[worker_number] = DataLoader(ConcatDataset(worker_data), shuffle=True, batch_size=self.batch_size)
+
+
+		return self._distribute_data(workers_data)
+
+
+	def prepare_federated_pathological_non_iid(self, train=True):
+		'''
+		Sort the data by digit label
+		Divide it into 200 shards of size 300
+		Assign each of n clients 200/n shards
+		'''
+
+		if train == True:
+			data = self.train_data
+		else:
+			data = self.test_data
+		
+
+		sorted_images = []
+		sorted_labels = []
+
+		for number in range(10):
+			indices = (data.targets == number).int()
+
+			images = data.data[indices == 1]
+			labels = data.targets[indices == 1]
+
+			sorted_images += images.unsqueeze(0)
+			sorted_labels += labels.unsqueeze(0)
+
+		sorted_images = torch.cat(sorted_images)
+		sorted_labels = torch.cat(sorted_labels)
+
+
+		shards = []
+		for i in range(200):
+			start = i*300
+			end = start+300
+
+			images = sorted_images[start:end]
+			labels = sorted_labels[start:end]
+
+			shard = TensorDataset(images, labels)
+			shards.append(shard)
+
+		workers_data = {}
+		shards_per_worker = len(shards)/len(self.workers)
+		for shard_idx, shard in enumerate(shards):
+			receiving_worker = (int)(shard_idx//shards_per_worker)
+			if receiving_worker not in workers_data:
+				workers_data[receiving_worker] = [shard]
+			else:
+				workers_data[receiving_worker].append(shard)
+
+		for worker_number, worker_data in workers_data.items():
+			workers_data[worker_number] = DataLoader(ConcatDataset(worker_data), shuffle=True, batch_size=self.batch_size)
+
+		return self._distribute_data(workers_data)
 
 
 	def prepare_private_data(self, precision_fractional=3, train=True):

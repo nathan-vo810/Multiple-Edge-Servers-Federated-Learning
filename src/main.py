@@ -3,13 +3,13 @@ import argparse
 from mnist_federated_trainer import FederatedTrainer
 from mnist_trainer import Trainer
 
-BATCH_SIZE = 32
+BATCH_SIZE = 10
 LEARNING_RATE = 1e-3
-NUM_ROUNDS = 0
-NUM_EPOCHS = 0
+NUM_ROUNDS = 200
+NUM_EPOCHS = 20
 MODEL_WEIGHT_DIR = "../weight"
 
-NUM_WORKERS = 3
+NUM_WORKERS = 100
 
 def parse_args():
 	parser = argparse.ArgumentParser()

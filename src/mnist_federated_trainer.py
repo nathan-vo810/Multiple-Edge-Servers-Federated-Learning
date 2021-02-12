@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from syft.federated.floptimizer import Optims
 
-from mnist_model import Model
+from mnist_model import CNNModel
 from mnist_data_loader import MNIST_DataLoader
 
 hook = syft.TorchHook(torch)
@@ -18,7 +18,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class FederatedTrainer:
 	def __init__(self, batch_size, lr, num_rounds, num_epochs, model_weight_dir, num_workers, iid, parallel):
-		self.model = Model().to(device)
+		self.model = CNNModel().to(device)
 		
 		self.lr = lr
 		self.batch_size = batch_size
@@ -109,7 +109,7 @@ class FederatedTrainer:
 			train_data = self.data_loader.prepare_federated_iid_data_parallel(train=True)
 		else:
 			print("Train in Federated Non-IID Mode")
-			train_data = self.data_loader.prepare_federated_non_iid_data_parallel(train=True)
+			train_data = self.data_loader.prepare_federated_pathological_non_iid(train=True)
 
 		print("Start training...")
 
@@ -129,7 +129,7 @@ class FederatedTrainer:
 						
 						images, labels = images.to(device), labels.to(device)
 
-						if (batch_idx+1)%300==0:
+						if (batch_idx+1)%100==0:
 							print(f"Processed {batch_idx+1}/{len(train_data[i])} batches")
 
 						worker_optims[i].zero_grad()
@@ -184,7 +184,7 @@ class FederatedTrainer:
 				self.model = self.model.send(images.location)
 				opt = optims.get_optim(images.location.id)
 
-				if (batch_idx+1) % 300 == 0: 
+				if (batch_idx+1) % 100 == 0: 
 					print("Processed {}/{} batches".format(batch_idx+1, len(train_data)))
 
 				optimizer.zero_grad()

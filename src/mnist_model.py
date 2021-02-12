@@ -49,3 +49,5 @@ class CNNModel(nn.Module):
 		x = self.maxpool(F.relu(self.conv2(x)))
 		x = self.fc1(self.flatten(x))
 		x = F.softmax(self.fc2(x), dim=1)
+
+		return x
