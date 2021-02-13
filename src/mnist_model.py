@@ -24,6 +24,7 @@ class Model(nn.Module):
 		x = self.maxpool(F.relu(self.conv1(x)))
 		x = self.maxpool(F.relu(self.conv2(x)))
 		x = self.fc(self.flatten(x))
+		x = F.softmax(x, dim=1)
 
 		return x
 

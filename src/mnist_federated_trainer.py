@@ -89,6 +89,12 @@ class FederatedTrainer:
 				for name, param in self.model.named_parameters():
 					param.data = (averaged_values[name]/len(local_models))
 
+		def clear_workers_objects():
+			for worker in self.workers:
+				worker.clear_objects()
+
+			self.secure_worker.clear_objects()
+
 		def create_local_models():
 			worker_models = []
 			worker_optims = []
@@ -109,9 +115,14 @@ class FederatedTrainer:
 			train_data = self.data_loader.prepare_federated_iid_data_parallel(train=True)
 		else:
 			print("Train in Federated Non-IID Mode")
-			train_data = self.data_loader.prepare_federated_pathological_non_iid(train=True)
+			# train_data = self.data_loader.prepare_federated_pathological_non_iid(train=True)
+			train_data = self.data_loader.prepare_federated_non_iid_parallel(train=True)
 
 		print("Start training...")
+
+		accuracy_logs = []
+
+		best_acc = 0
 
 		for round_iter in range(self.num_rounds):
 			worker_models, worker_optims, worker_criterions, worker_losses = create_local_models()
@@ -143,9 +154,14 @@ class FederatedTrainer:
 
 			# Average all the local models
 			model_averaging(worker_models)
-			self.validate(load_weight=False)
+			clear_workers_objects()
+			accuracy = self.validate(load_weight=False)
 
-		self.save_model()
+			if accuracy > best_acc:
+				best_acc = accuracy
+				print("Saving model...")
+				self.save_model()
+
 		print("Finish training!")
 
 	def train_sequential(self):
@@ -225,6 +241,12 @@ class FederatedTrainer:
 				pred = output.argmax(dim=1)
 				corrects += pred.eq(labels.view_as(pred)).sum().item()
 
+
+		total_test = len(test_data)*self.batch_size
+		accuracy = 100*corrects/total_test
+
 		print("Number of corrects: {}/{}".format(corrects, len(test_data)*self.batch_size))
-		print("Accuracy: {}%".format(100*corrects/(len(test_data)*self.batch_size)))
+		print("Accuracy: {}%".format(accuracy))
 		print("-----------------------------------------")
+
+		return accuracy
