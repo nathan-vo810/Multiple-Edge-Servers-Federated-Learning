@@ -115,8 +115,8 @@ class FederatedTrainer:
 			train_data = self.data_loader.prepare_federated_iid_data_parallel(train=True)
 		else:
 			print("Train in Federated Non-IID Mode")
-			# train_data = self.data_loader.prepare_federated_pathological_non_iid(train=True)
-			train_data = self.data_loader.prepare_federated_non_iid_parallel(train=True)
+			train_data = self.data_loader.prepare_federated_pathological_non_iid(train=True)
+			# train_data = self.data_loader.prepare_federated_non_iid_parallel(train=True)
 
 		print("Start training...")
 
@@ -159,8 +159,8 @@ class FederatedTrainer:
 
 			if accuracy > best_acc:
 				best_acc = accuracy
-				print("Saving model...")
 				self.save_model()
+				print("Model saved!")
 
 		print("Finish training!")
 
