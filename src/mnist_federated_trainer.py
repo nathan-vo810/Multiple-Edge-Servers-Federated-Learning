@@ -89,11 +89,6 @@ class FederatedTrainer:
 				for name, param in self.model.named_parameters():
 					param.data = (averaged_values[name]/len(local_models))
 
-		def clear_workers_objects():
-			for worker in self.workers:
-				worker.clear_objects()
-
-			self.secure_worker.clear_objects()
 
 		def create_local_models():
 			worker_models = []
@@ -116,7 +111,7 @@ class FederatedTrainer:
 		else:
 			print("Train in Federated Non-IID Mode")
 			train_data = self.data_loader.prepare_federated_pathological_non_iid(train=True)
-			# train_data = self.data_loader.prepare_federated_non_iid_parallel(train=True)
+			# train_data = self.data_loader.prepare_federated_non_iid_data_parallel(train=True)
 
 		print("Start training...")
 
@@ -154,13 +149,11 @@ class FederatedTrainer:
 
 			# Average all the local models
 			model_averaging(worker_models)
-			clear_workers_objects()
 			accuracy = self.validate(load_weight=False)
 
 			if accuracy > best_acc:
 				best_acc = accuracy
 				self.save_model()
-				print("Model saved!")
 
 		print("Finish training!")
 
