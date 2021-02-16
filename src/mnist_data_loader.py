@@ -20,13 +20,10 @@ class MNIST_DataLoader:
 		return data
 
 
-	def prepare_data(self, train):
-		if train == True:
-			data_loader = DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True)
-		else:
-			data_loader = DataLoader(self.test_data, batch_size=self.batch_size, shuffle=True)
-
-		return data_loader
+	def prepare_data(self, train):	
+		data = self.train_data if train == True else self.test_data
+		
+		return DataLoader(data, batch_size=self.batch_size, shuffle=True)
 
 
 	def prepare_federated_iid_data_sequential(self, train=True):
@@ -36,10 +33,7 @@ class MNIST_DataLoader:
 		Each worker holds several batches
 		'''
 
-		if train == True:
-			data = self.train_data
-		else:
-			data = self.test_data
+		data = self.train_data if train == True else self.test_data
 		
 		print("Distributing data...")
 		federated_iid_data_loader = syft.FederatedDataLoader(data.federate(self.workers), batch_size=self.batch_size, shuffle=True)
@@ -55,72 +49,13 @@ class MNIST_DataLoader:
 		Each worker holds several batches
 		'''
 
-		if train == True:
-			data = self.train_data
-		else:
-			data = self.test_data
+		data = self.train_data if train == True else self.test_data
 		
 		print("Distributing data...")
 		federated_iid_data_loader = syft.FederatedDataLoader(data.federate(self.workers), batch_size=self.batch_size, shuffle=True)
 		print("Done!")
 
 		return federated_iid_data_loader
-
-
-	def prepare_federated_non_iid_data_sequential(self, train=True):
-
-		'''
-		Sort data
-		Distribute the classes to workers
-		Each worker holds the complete data of a class
-		'''
-
-		def get_data_of_number(data, number):
-			indices = (data.targets == number).int()
-
-			images = data.data[indices == 1]
-			labels = data.targets[indices == 1]
-
-			return TensorDataset(images, labels)
-
-		def normalize(x, mean=0.1307, std=0.3081):
-			return (x-mean)/std
-
-		if train == True:
-			data = self.train_data
-		else:
-			data = self.test_data
-
-		data_by_class = [get_data_of_number(data, i) for i in range(10)]
-
-		workers_classes = {}
-		for number in range(10):
-			class_data = get_data_of_number(data, number)
-
-			receiving_worker = number%len(self.workers)
-			if receiving_worker not in workers_classes:
-				workers_classes[receiving_worker] = [class_data]
-			else:
-				workers_classes[receiving_worker].append(class_data)
-
-		for worker_number, worker_data in workers_classes.items():
-			workers_classes[worker_number] = DataLoader(ConcatDataset(worker_data), shuffle=True, batch_size=self.batch_size)
-
-
-		federated_non_iid_data = {}
-		for worker_number in range(len(self.workers)):
-			federated_non_iid_data[worker_number] = []
-
-		print("Distributing data...")
-		for worker_number, worker_data in workers_classes.items():
-			print(f"Sending data to worker_{worker_number}")
-			worker = self.workers[worker_number]
-			for batch_idx, (images, labels) in enumerate(worker_data):
-				images = normalize(images).unsqueeze(1)
-				federated_non_iid_data[worker_number].append((images.send(worker), labels.send(worker)))
-		print("Done!")
-
-		return federated_non_iid_data
 
 
 	def _distribute_data(self, workers_data):
@@ -144,7 +79,16 @@ class MNIST_DataLoader:
 		return federated_non_iid_data
 
 
-	def prepare_federated_non_iid_data_parallel(self, train=True):
+	def _get_data_of_number(data, number):
+		indices = (data.targets == number).int()
+
+		images = data.data[indices == 1]
+		labels = data.targets[indices == 1]
+
+		return TensorDataset(images, labels)
+
+
+	def prepare_federated_non_iid_data_sequential(self, train=True):
 
 		'''
 		Sort data
@@ -152,22 +96,11 @@ class MNIST_DataLoader:
 		Each worker holds the complete data of a class
 		'''
 
-		def get_data_of_number(self, data, number):
-			indices = (data.targets == number).int()
-
-			images = data.data[indices == 1]
-			labels = data.targets[indices == 1]
-
-			return TensorDataset(images, labels)
-
-		if train == True:
-			data = self.train_data
-		else:
-			data = self.test_data
+		data = self.train_data if train == True else self.test_data
 
 		workers_data = {}
 		for number in range(10):
-			class_data = get_data_of_number(data, number)
+			class_data = self._get_data_of_number(data, number)
 
 			receiving_worker = number%len(self.workers)
 			if receiving_worker not in workers_data:
@@ -178,6 +111,31 @@ class MNIST_DataLoader:
 		for worker_number, worker_data in workers_data.items():
 			workers_data[worker_number] = DataLoader(ConcatDataset(worker_data), shuffle=True, batch_size=self.batch_size)
 
+		return self._distribute_data(workers_data)
+
+
+	def prepare_federated_non_iid_data_parallel(self, train=True):
+
+		'''
+		Sort data
+		Distribute the classes to workers
+		Each worker holds the complete data of a class
+		'''
+
+		data = self.train_data if train == True else self.test_data
+
+		workers_data = {}
+		for number in range(10):
+			class_data = self._get_data_of_number(data, number)
+
+			receiving_worker = number%len(self.workers)
+			if receiving_worker not in workers_data:
+				workers_data[receiving_worker] = [class_data]
+			else:
+				workers_data[receiving_worker].append(class_data)
+
+		for worker_number, worker_data in workers_data.items():
+			workers_data[worker_number] = DataLoader(ConcatDataset(worker_data), shuffle=True, batch_size=self.batch_size)
 
 		return self._distribute_data(workers_data)
 
@@ -189,12 +147,8 @@ class MNIST_DataLoader:
 		Assign each of n clients 200/n shards
 		'''
 
-		if train == True:
-			data = self.train_data
-		else:
-			data = self.test_data
+		data = self.train_data if train == True else self.test_data
 		
-
 		sorted_images = []
 		sorted_labels = []
 
