@@ -143,9 +143,10 @@ class FederatedHierachicalTrainer:
 		is_updated = [True]*len(self.edge_servers)
 		
 		for epoch in range(self.num_epochs):
-			
+			print(f"Epoch {epoch+1}/{self.num_epochs}")
 			# Train each edge server
 			for k, edge_server in enumerate(self.edge_servers):
+				print(f"Edge Server {k+1}/{len(self.edge_servers)}")
 				# Send the edge model to the connected workers
 				if is_updated[k]:
 					print("--Send edge model to local workers--")
@@ -154,11 +155,10 @@ class FederatedHierachicalTrainer:
 
 				# Train each worker with its own local data
 				for i, worker_model in enumerate(worker_models):
-					print(worker_model)
 					worker_id = int(assignment[edge_server][i].id.split("_")[1])
 
 					# Train worker's model
-					print(f"Epoch {epoch+1}/{self.num_epochs} - Worker {i+1}/{self.workers_per_server} - ID {worker_id}")
+					print(f"Worker {i+1}/{self.workers_per_server} - ID {worker_id}")
 					for batch_idx, (images, labels) in enumerate(train_data[worker_id]):
 						
 						images, labels = images.to(device), labels.to(device)
