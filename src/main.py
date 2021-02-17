@@ -14,8 +14,8 @@ NUM_WORKERS = 10
 ##############################
 NUM_EDGE_SERVERS = 10
 WORKERS_PER_SERVER = 1
-EDGE_UPDATE_AFTER_EVERY = 5
-GLOBAL_UPDATE_AFTER_EVERY = 20
+EDGE_UPDATE_AFTER_EVERY = 1
+GLOBAL_UPDATE_AFTER_EVERY = 2
 
 def parse_args():
 	parser = argparse.ArgumentParser()

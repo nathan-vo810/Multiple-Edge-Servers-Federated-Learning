@@ -131,7 +131,17 @@ class FederatedHierachicalTrainer:
 					param.data = (averaged_values[name]/len(local_models))
 
 		def global_averaging(local_models, target_model):
-			return
+			with torch.no_grad():
+				averaged_values = {}
+				for name, param in target_model.named_parameters():
+					averaged_values[name] = nn.Parameter(torch.zeros_like(param.data))
+
+				for local_model in local_models:
+					for name, local_param in local_model.named_parameters():
+						averaged_values[name] += local_param.data
+
+				for name, param in target_model.named_parameters():
+					param.data = (averaged_values[name]/len(local_models))
 
 		if self.iid == True:
 			print("Train in Federated Hierachical IID Mode")
@@ -163,12 +173,13 @@ class FederatedHierachicalTrainer:
 				# If there is a new model, send the edge model to the connected workers
 				if is_updated[k]:
 					print("--Send edge model to local workers--")
-					send_model(source=edge_server_models[k], receivers=assignment[edge_server])
+					send_model(source=edge_server_models[k], receivers_id=assignment[edge_server])
 					is_updated[k] = False
 
 				# Train each worker with its own local data
-				for i, worker_model in enumerate(worker_models):
-					worker_id = int(assignment[edge_server][i].id.split("_")[1])
+				for i in range(self.workers_per_server):
+
+					worker_id = assignment[edge_server][i]
 					worker = self.workers[worker_id]
 
 					# Train worker's model
@@ -191,14 +202,14 @@ class FederatedHierachicalTrainer:
 				print("--Edge Model Average--")
 				for k, edge_server in enumerate(self.edge_servers):
 					# List of connected workers models
-					local_models = [worker_models[worker.id.split("_")[1]] for worker in assignment[edge_servers]]
+					local_models = [self.workers[worker_id]["model"] for worker_id in assignment[edge_server]]
 					
 					# Move local models to secure worker for averaging
 					for model in local_models:
 						model.move(self.secure_worker)
 
 					# Average all the local models of the edge server
-					model_averaging(local_models, target_model=edge_server_models[k])					
+					edge_averaging(local_models, target_model=edge_server_models[k])					
 
 					# Signal that new model is available
 					is_updated[k] = True
@@ -210,7 +221,7 @@ class FederatedHierachicalTrainer:
 				for edge_server_model in edge_server_models:
 					edge_server_model.move(self.secure_worker)
 
-				model_averaging(edge_server_models, target_model=self.model)
+				global_averaging(edge_server_models, target_model=self.model)
 
 				print("--Done--")
 
