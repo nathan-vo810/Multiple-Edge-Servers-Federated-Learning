@@ -33,7 +33,7 @@ class FederatedHierachicalTrainer:
 
 		self.workers_per_server = workers_per_server
 
-		self.data_loader = MNIST_DataLoader(batch_size, workers=self.workers)
+		self.data_loader = MNIST_DataLoader(batch_size, workers=[worker["instance"] for worker in self.workers])
 
 		self.edge_update = edge_update
 		self.global_update = global_update
@@ -42,7 +42,17 @@ class FederatedHierachicalTrainer:
 
 	
 	def init_workers(self, num_workers):
-		return [syft.VirtualWorker(hook, id=f"worker_{i}") for i in range(num_workers)]
+		workers = []
+		for i in range(num_workers):
+			worker = {}
+			worker["instance"] = syft.VirtualWorker(hook, id=f"worker_{i}")
+			worker["model"] = None
+			worker["optim"] = None
+			worker["criterion"] = None
+			worker["losses"] = None 
+
+			workers.append(worker)
+		return workers
 
 	
 	def init_edge_servers(self, num_edge_servers):
@@ -85,26 +95,27 @@ class FederatedHierachicalTrainer:
 				worker_id = random.randint(0, len(self.workers)-1)
 				if workers_assigned[worker_id] == False:
 					workers_assigned[worker_id] = True
-					assignment[edge_server].append(self.workers[worker_id])
+					# assignment[edge_server].append(self.workers[worker_id])
+					assignment[edge_server].append(worker_id)
 
 		return assignment
 
 	def train(self):
 
-		def send_model(source, receivers):
+		def send_model(source, receivers_id):
 			worker_models = []
 			worker_optims = []
 			worker_criterions = []
 			worker_losses = []
 
-			for receiver in receivers:
-				model_clone = source.copy().send(receiver)
+			for index in receivers_id:
+				worker = self.workers[index]
 
-				worker_models.append(model_clone)
-				worker_optims.append(optim.SGD(model_clone.parameters(), lr=self.lr))
-				worker_criterions.append(nn.CrossEntropyLoss())
+				model_clone = source.copy().send(worker["instance"])
+				worker["model"] = model_clone
 
-			return worker_models, worker_optims, worker_criterions, worker_losses
+				worker["optim"] = optim.SGD(model_clone.parameters(), lr=self.lr) if worker["optim"] == None else worker["optim"]
+				worker["criterion"] = nn.CrossEntropyLoss() if worker["criterion"] == None else worker["worker_criterions"]
 
 		def edge_averaging(local_models, target_model):
 			with torch.no_grad():
@@ -144,18 +155,21 @@ class FederatedHierachicalTrainer:
 		
 		for epoch in range(self.num_epochs):
 			print(f"Epoch {epoch+1}/{self.num_epochs}")
+
 			# Train each edge server
 			for k, edge_server in enumerate(self.edge_servers):
 				print(f"Edge Server {k+1}/{len(self.edge_servers)}")
-				# Send the edge model to the connected workers
+
+				# If there is a new model, send the edge model to the connected workers
 				if is_updated[k]:
 					print("--Send edge model to local workers--")
-					worker_models, worker_optims, worker_criterions, worker_losses = send_model(source=edge_server_models[k], receivers=assignment[edge_server])
+					send_model(source=edge_server_models[k], receivers=assignment[edge_server])
 					is_updated[k] = False
 
 				# Train each worker with its own local data
 				for i, worker_model in enumerate(worker_models):
 					worker_id = int(assignment[edge_server][i].id.split("_")[1])
+					worker = self.workers[worker_id]
 
 					# Train worker's model
 					print(f"Worker {i+1}/{self.workers_per_server} - ID {worker_id}")
@@ -166,11 +180,11 @@ class FederatedHierachicalTrainer:
 						if (batch_idx+1)%100==0:
 							print(f"Processed {batch_idx+1}/{len(train_data[i])} batches")
 
-						worker_optims[i].zero_grad()
-						output = worker_model.forward(images)
-						loss = worker_criterions[i](output, labels)
+						worker["optim"].zero_grad()
+						output = worker["model"].forward(images)
+						loss = worker["criterion"](output, labels)
 						loss.backward()
-						worker_optims[i].step()
+						worker["optim"].step()
 
 			# After every E epoch, average the models at each edge server
 			if (epoch+1) % self.edge_update == 0:
