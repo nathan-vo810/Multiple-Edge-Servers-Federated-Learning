@@ -26,7 +26,7 @@ class FederatedTrainer:
 		self.num_epochs = num_epochs
 		self.model_weight_dir = model_weight_dir
 
-		self.workers = self.init_worker(num_workers)
+		self.workers = self.init_workers(num_workers)
 		self.secure_worker = self.init_secure_worker()
 
 		self.data_loader = MNIST_DataLoader(batch_size, workers=self.workers)
@@ -35,7 +35,7 @@ class FederatedTrainer:
 		self.parallel = parallel
 
 	
-	def init_worker(self, num_workers):
+	def init_workers(self, num_workers):
 		return [syft.VirtualWorker(hook, id=f"worker_{i}") for i in range(num_workers)]
 
 	
@@ -90,14 +90,14 @@ class FederatedTrainer:
 					param.data = (averaged_values[name]/len(local_models))
 
 
-		def create_local_models():
+		def send_model(source, receivers):
 			worker_models = []
 			worker_optims = []
 			worker_criterions = []
 			worker_losses = []
 
-			for i in range(len(self.workers)):
-				model_clone = self.model.copy()
+			for i in range(len(receivers)):
+				model_clone = source.copy().send(receivers[i])
 
 				worker_models.append(model_clone)
 				worker_optims.append(optim.SGD(model_clone.parameters(), lr=self.lr))
@@ -120,13 +120,10 @@ class FederatedTrainer:
 		best_acc = 0
 
 		for round_iter in range(self.num_rounds):
-			worker_models, worker_optims, worker_criterions, worker_losses = create_local_models()
+			worker_models, worker_optims, worker_criterions, worker_losses = send_model(source=self.model, receivers=self.workers)
 
 			# Train each worker with its own local data
-			for i in range(len(worker_models)):
-
-				# Send model to worker
-				worker_models[i] = worker_models[i].send(self.workers[i])
+			for i, worker_model in enumerate(worker_models):
 
 				# Train worker's model
 				for epoch in range(self.num_epochs):
@@ -139,13 +136,13 @@ class FederatedTrainer:
 							print(f"Processed {batch_idx+1}/{len(train_data[i])} batches")
 
 						worker_optims[i].zero_grad()
-						output = worker_models[i].forward(images)
+						output = worker_model.forward(images)
 						loss = worker_criterions[i](output, labels)
 						loss.backward()
 						worker_optims[i].step()
 
 				# Get back the trained model (move to the secure aggregation)
-				worker_models[i].move(self.secure_worker)
+				worker_model.move(self.secure_worker)
 
 			# Average all the local models
 			model_averaging(worker_models)
@@ -212,7 +209,9 @@ class FederatedTrainer:
 
 			self.validate(load_weight=False)
 
-		self.save_model()
+			if accuracy > best_acc:
+				best_acc = accuracy
+				self.save_model()
 
 
 	def validate(self, load_weight=False):
