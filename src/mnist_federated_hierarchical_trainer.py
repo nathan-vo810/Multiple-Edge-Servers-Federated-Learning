@@ -115,7 +115,7 @@ class FederatedHierachicalTrainer:
 				worker["model"] = model_clone
 
 				worker["optim"] = optim.SGD(model_clone.parameters(), lr=self.lr) if worker["optim"] == None else worker["optim"]
-				worker["criterion"] = nn.CrossEntropyLoss() if worker["criterion"] == None else worker["worker_criterions"]
+				worker["criterion"] = nn.CrossEntropyLoss() if worker["criterion"] == None else worker["criterions"]
 
 		def edge_averaging(local_models, target_model):
 			with torch.no_grad():
@@ -213,7 +213,6 @@ class FederatedHierachicalTrainer:
 
 					# Signal that new model is available
 					is_updated[k] = True
-				print("--Done--")
 
 			# After every G epoch average the models at the cloud
 			if (epoch+1) % self.global_update == 0:
@@ -222,8 +221,6 @@ class FederatedHierachicalTrainer:
 					edge_server_model.move(self.secure_worker)
 
 				global_averaging(edge_server_models, target_model=self.model)
-
-				print("--Done--")
 
 				accuracy = self.validate(load_weight=False)
 				accuracy_logs.append(accuracy)
