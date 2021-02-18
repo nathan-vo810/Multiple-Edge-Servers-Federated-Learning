@@ -102,22 +102,22 @@ class FederatedHierachicalTrainer:
 
 	def train(self):
 
-		def send_model(source, receivers_id):
+		def send_model_to_workers(source, worker_ids):
 			worker_models = []
 			worker_optims = []
 			worker_criterions = []
 			worker_losses = []
 
-			for index in receivers_id:
-				worker = self.workers[index]
+			for worker_id in worker_ids:
+				worker = self.workers[worker_id]
 
 				model_clone = source.copy().send(worker["instance"])
 				worker["model"] = model_clone
 
-				worker["optim"] = optim.SGD(model_clone.parameters(), lr=self.lr) if worker["optim"] == None else worker["optim"]
-				worker["criterion"] = nn.CrossEntropyLoss() if worker["criterion"] == None else worker["criterions"]
+				worker["optim"] = optim.SGD(model_clone.parameters(), lr=self.lr)
+				worker["criterion"] = nn.CrossEntropyLoss() 
 
-		def edge_averaging(local_models, target_model):
+		def model_averaging(local_models, target_model, edge_averaging):
 			with torch.no_grad():
 				averaged_values = {}
 				for name, param in target_model.named_parameters():
@@ -125,20 +125,10 @@ class FederatedHierachicalTrainer:
 
 				for local_model in local_models:
 					for name, local_param in local_model.named_parameters():
-						averaged_values[name] += local_param.get().data
-
-				for name, param in target_model.named_parameters():
-					param.data = (averaged_values[name]/len(local_models))
-
-		def global_averaging(local_models, target_model):
-			with torch.no_grad():
-				averaged_values = {}
-				for name, param in target_model.named_parameters():
-					averaged_values[name] = nn.Parameter(torch.zeros_like(param.data))
-
-				for local_model in local_models:
-					for name, local_param in local_model.named_parameters():
-						averaged_values[name] += local_param.data
+						if edge_averaging == True:
+							averaged_values[name] += local_param.get().data
+						else:
+							averaged_values[name] += local_param.data
 
 				for name, param in target_model.named_parameters():
 					param.data = (averaged_values[name]/len(local_models))
@@ -160,7 +150,7 @@ class FederatedHierachicalTrainer:
 
 		# Send the global model to each edge server
 		print("--Send global model to edge servers--")
-		edge_server_models = [self.model] * len(self.edge_servers)
+		edge_server_models = [self.model.copy()] * len(self.edge_servers)
 		is_updated = [True]*len(self.edge_servers)
 		
 		for epoch in range(self.num_epochs):
@@ -173,7 +163,7 @@ class FederatedHierachicalTrainer:
 				# If there is a new model, send the edge model to the connected workers
 				if is_updated[k]:
 					print("--Send edge model to local workers--")
-					send_model(source=edge_server_models[k], receivers_id=assignment[edge_server])
+					send_model(source=edge_server_models[k], worker_ids=assignment[edge_server])
 					is_updated[k] = False
 
 				# Train each worker with its own local data
@@ -209,18 +199,18 @@ class FederatedHierachicalTrainer:
 						model.move(self.secure_worker)
 
 					# Average all the local models of the edge server
-					edge_averaging(local_models, target_model=edge_server_models[k])					
+					model_averaging(local_models, target_model=edge_server_models[k], edge_averaging=True)					
 
 					# Signal that new model is available
 					is_updated[k] = True
 
-			# After every G epoch average the models at the cloud
+			# After every G epoch average the edge models at the cloud
 			if (epoch+1) % self.global_update == 0:
 				print("--Global Model Average--")
-				for edge_server_model in edge_server_models:
-					edge_server_model.move(self.secure_worker)
+				for i in range(len(edge_server_models)):
+					edge_server_models[i] = edge_server_models[i].send(self.secure_worker)
 
-				global_averaging(edge_server_models, target_model=self.model)
+				model_averaging(edge_server_models, target_model=self.model, , edge_averaging=False)
 
 				accuracy = self.validate(load_weight=False)
 				accuracy_logs.append(accuracy)
@@ -230,7 +220,7 @@ class FederatedHierachicalTrainer:
 				
 				# Send the global model to edge servers
 				print("--Send global model to edge servers--")
-				edge_server_models = [self.model] * len(self.edge_servers)
+				edge_server_models = [self.model.copy()] * len(self.edge_servers)
 				is_updated = [True] * len(self.edge_servers)
 					
 		print("Finish training!")
