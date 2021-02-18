@@ -124,12 +124,12 @@ class FederatedHierachicalTrainer:
 					averaged_values[name] = nn.Parameter(torch.zeros_like(param.data))
 
 				for local_model in local_models:
-					for name, local_param in local_model.named_parameters():
+					for name, local_param in local_model.named_parameters():	
 						if edge_averaging == True:
 							averaged_values[name] += local_param.get().data
 						else:
 							averaged_values[name] += local_param.data
-
+						
 				for name, param in target_model.named_parameters():
 					param.data = (averaged_values[name]/len(local_models))
 
@@ -163,7 +163,7 @@ class FederatedHierachicalTrainer:
 				# If there is a new model, send the edge model to the connected workers
 				if is_updated[k]:
 					print("--Send edge model to local workers--")
-					send_model(source=edge_server_models[k], worker_ids=assignment[edge_server])
+					send_model_to_workers(source=edge_server_models[k], worker_ids=assignment[edge_server])
 					is_updated[k] = False
 
 				# Train each worker with its own local data
@@ -189,7 +189,7 @@ class FederatedHierachicalTrainer:
 
 			# After every E epoch, average the models at each edge server
 			if (epoch+1) % self.edge_update == 0:
-				print("--Edge Model Average--")
+				print("--Edge Models Average--")
 				for k, edge_server in enumerate(self.edge_servers):
 					# List of connected workers models
 					local_models = [self.workers[worker_id]["model"] for worker_id in assignment[edge_server]]
@@ -207,10 +207,10 @@ class FederatedHierachicalTrainer:
 			# After every G epoch average the edge models at the cloud
 			if (epoch+1) % self.global_update == 0:
 				print("--Global Model Average--")
-				for i in range(len(edge_server_models)):
-					edge_server_models[i] = edge_server_models[i].send(self.secure_worker)
+				# for i in range(len(edge_server_models)):
+				# 	edge_server_models[i] = edge_server_models[i].send(self.secure_worker)
 
-				model_averaging(edge_server_models, target_model=self.model, , edge_averaging=False)
+				model_averaging(edge_server_models, target_model=self.model, edge_averaging=False)
 
 				accuracy = self.validate(load_weight=False)
 				accuracy_logs.append(accuracy)
