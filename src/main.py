@@ -38,10 +38,10 @@ def t_or_f(arg):
 def main(args):
 	if args.mode == 'normal':
 		trainer = Trainer(BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, MODEL_WEIGHT_DIR)
-	# elif args.mode == 'federated-iid':
-	# 	trainer = FederatedTrainer(BATCH_SIZE, LEARNING_RATE, NUM_ROUNDS, NUM_EPOCHS, MODEL_WEIGHT_DIR, NUM_WORKERS, iid=True, parallel=False)
-	# elif args.mode == 'federated-non-iid':
-	# 	trainer = FederatedTrainer(BATCH_SIZE, LEARNING_RATE, NUM_ROUNDS, NUM_EPOCHS, MODEL_WEIGHT_DIR, NUM_WORKERS, iid=False, parallel=True)
+	elif args.mode == 'federated-iid':
+		trainer = FederatedTrainer(BATCH_SIZE, LEARNING_RATE, NUM_ROUNDS, NUM_EPOCHS, MODEL_WEIGHT_DIR, NUM_WORKERS, iid=True, parallel=False)
+	elif args.mode == 'federated-non-iid':
+		trainer = FederatedTrainer(BATCH_SIZE, LEARNING_RATE, NUM_ROUNDS, NUM_EPOCHS, MODEL_WEIGHT_DIR, NUM_WORKERS, iid=False, parallel=True)
 	elif args.mode == 'hierarchical-iid':
 		trainer = FederatedHierachicalTrainer(BATCH_SIZE, LEARNING_RATE, NUM_ROUNDS, NUM_EPOCHS, MODEL_WEIGHT_DIR, NUM_WORKERS, NUM_EDGE_SERVERS, WORKERS_PER_SERVER, EDGE_UPDATE_AFTER_EVERY, GLOBAL_UPDATE_AFTER_EVERY, iid=True)
 	else:
