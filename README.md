@@ -7,8 +7,8 @@ Install PySyft to support Federated Learning. Follow the tutorial [here](https:/
 
 ## Running The Code
 To run the code, go to terminal and type 
-For training: ```python3 main.py --mode=MODE --train``` 
-For validating: ```python3 main.py --mode=MODE --no-train```
+-- For training: ```python3 main.py --mode=MODE --train``` 
+-- For validating: ```python3 main.py --mode=MODE --no-train```
 
 There are currently 5 modes:
 1. normal
