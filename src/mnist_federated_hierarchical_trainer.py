@@ -1,6 +1,7 @@
 import os
 import random
 
+import numpy as np
 import torch
 import syft
 
@@ -14,7 +15,11 @@ from mnist_data_loader import MNIST_DataLoader
 
 hook = syft.TorchHook(torch)
 
-torch.manual_seed(1)
+seed = 1
+
+torch.manual_seed(seed)
+random.seed(seed)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class FederatedHierachicalTrainer:
@@ -28,7 +33,10 @@ class FederatedHierachicalTrainer:
 		self.model_weight_dir = model_weight_dir
 
 		self.workers = self.init_workers(num_workers)
+		self.init_worker_locations()
+
 		self.edge_servers = self.init_edge_servers(num_edge_servers)
+
 		self.secure_worker = self.init_secure_worker()
 
 		self.workers_per_server = workers_per_server
@@ -63,9 +71,28 @@ class FederatedHierachicalTrainer:
 		return syft.VirtualWorker(hook, id="secure_worker")
 
 
-	def init_distances(self):
-		distances = np.array()
-		return distances
+	def init_worker_locations(self):
+		location_ranges = [0,1,2,3,4]
+		distributions = [0.1, 0.15, 0.2, 0.25, 0.3]
+
+		for worker in self.workers:
+			index = np.random.choice(location_ranges, 1, replace=False, p=distributions)[0]
+			start = 0.2 * index
+			end = start + 0.2
+
+			worker["location"] = (random.uniform(start, end), random.uniform(start, end))
+
+
+	def calculate_distances(self):	
+		server_locations = [np.array((random.random(), random.random())) for i in range(len(self.edge_servers))]
+
+		distance_matrix = []
+		
+		for worker in self.workers:
+			distances = [np.linalg.norm(worker["location"] - server_location) for server_location in server_locations]
+			distance_matrix.append(distances)
+		
+		return distance_matrix
 
 	
 	def load_data(self, train):
@@ -81,6 +108,27 @@ class FederatedHierachicalTrainer:
 			os.makedirs(self.model_weight_dir)
 		torch.save(self.model.state_dict(), self.model_weight_dir + "/weight.pth")
 		print("Model saved!")
+
+
+	def shortest_distance_workers_servers_assign(self):
+		distance_matrix = self.calculate_distances()
+		distance_matrix = np.transpose(distance_matrix)
+
+		workers_per_server = len(self.workers) / len(self.edge_servers)
+		workers_assigned = [False] * len(self.workers)
+
+		assignment = {}
+		for i, edge_server in enumerate(self.edge_servers):
+			assignment[edge_server] = []
+			while len(assignment[edge_server]) < workers_per_server:
+				nearest_worker_id = np.argmin(distance_matrix[i], axis=0)
+				if workers_assigned[nearest_worker_id] == False:
+					workers_assigned[nearest_worker_id] = True
+					assignment[edge_server].append(nearest_worker_id)
+		
+				distance_matrix[i][nearest_worker_id] = 10
+
+		return assignment
 
 
 	def random_workers_servers_assign(self):
@@ -99,6 +147,12 @@ class FederatedHierachicalTrainer:
 					assignment[edge_server].append(worker_id)
 
 		return assignment
+
+
+	def location_workers_servers_assign(self):
+		server_locations = self.init_server_locations()
+
+		distances = calculate_distances(server_locations, self.workers)
 
 	def train(self):
 
@@ -146,7 +200,9 @@ class FederatedHierachicalTrainer:
 		best_acc = 0
 
 		# Assign workers to edge servers
-		assignment = self.random_workers_servers_assign()
+
+		# assignment = self.random_workers_servers_assign()
+		assignment = self.shortest_distance_workers_servers_assign()
 
 		# Send the global model to each edge server
 		print("--Send global model to edge servers--")
@@ -222,7 +278,7 @@ class FederatedHierachicalTrainer:
 				print("--Send global model to edge servers--")
 				edge_server_models = [self.model.copy()] * len(self.edge_servers)
 				is_updated = [True] * len(self.edge_servers)
-					
+				
 		print("Finish training!")
 
 
