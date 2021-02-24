@@ -1,6 +1,6 @@
 import argparse
 
-# from mnist_federated_trainer import FederatedTrainer
+from mnist_federated_trainer import FederatedTrainer
 from mnist_federated_hierarchical_trainer import FederatedHierachicalTrainer
 from mnist_trainer import Trainer
 
@@ -9,11 +9,11 @@ LEARNING_RATE = 1e-3
 NUM_ROUNDS = 200
 NUM_EPOCHS = 20
 MODEL_WEIGHT_DIR = "../weight"
-NUM_WORKERS = 10
+NUM_WORKERS = 100
 
 ##############################
 NUM_EDGE_SERVERS = 10
-WORKERS_PER_SERVER = 1
+WORKERS_PER_SERVER = 10
 EDGE_UPDATE_AFTER_EVERY = 1
 GLOBAL_UPDATE_AFTER_EVERY = 2
 
