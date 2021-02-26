@@ -215,7 +215,7 @@ class FederatedHierachicalTrainer:
 			server_indices = np.argpartition(cost, edge_servers_per_worker)
 			for server_id in server_indices[:edge_servers_per_worker]:
 				z[i][server_id] = 1
-				assignment[self.edge_servers[server_id]].append(worker)
+				assignment[self.edge_servers[server_id]].append(i)
 
 		return assignment
 
@@ -254,18 +254,29 @@ class FederatedHierachicalTrainer:
 			worker["criterion"] = nn.CrossEntropyLoss() 
 
 
-	def model_averaging(self, local_models, target_model, edge_averaging):
+	def model_averaging(self, model_ids, target_model, edge_averaging):
 		with torch.no_grad():
 			averaged_values = {}
 			for name, param in target_model.named_parameters():
 				averaged_values[name] = nn.Parameter(torch.zeros_like(param.data))
 
-			for local_model in local_models:
-				for name, local_param in local_model.named_parameters():	
-					if edge_averaging == True:
-						averaged_values[name] += local_param.get().data
-					else:
-						averaged_values[name] += local_param.data
+			if edge_averaging == True:
+				for model_id in model_ids:
+					worker = self.worker[model_id]
+
+					model = worker["model"].get_()
+
+					for name, param in model.named_parameters():		
+						averaged_values[name] += param.data
+				
+					worker["model"] = model.send(worker["instance"])
+			else:
+				# Global Averaging
+				models = model_ids
+
+				for model in models:
+					for name, param in model.named_parameters():	
+						averaged_values[name] += param.data
 					
 			for name, param in target_model.named_parameters():
 				param.data = (averaged_values[name]/len(local_models))
@@ -311,13 +322,13 @@ class FederatedHierachicalTrainer:
 					is_updated[k] = False
 
 				# Train each worker with its own local data
-				for i in range(self.workers_per_server):
+				for i in range(len(assignment[edge_server])):
 
 					worker_id = assignment[edge_server][i]
 					worker = self.workers[worker_id]
 
 					# Train worker's model
-					print(f"Worker {i+1}/{self.workers_per_server} - ID {worker_id}")
+					print(f"Worker {i+1}/{len(assignment[edge_server])} - ID {worker_id}")
 					for batch_idx, (images, labels) in enumerate(train_data[worker_id]):
 						
 						images, labels = images.to(device), labels.to(device)
@@ -336,14 +347,14 @@ class FederatedHierachicalTrainer:
 				print("--Edge Models Average--")
 				for k, edge_server in enumerate(self.edge_servers):
 					# List of connected workers models
-					local_models = [self.workers[worker_id]["model"] for worker_id in assignment[edge_server]]
+					# local_models = [self.workers[worker_id]["model"] for worker_id in assignment[edge_server]]
 					
 					# Move local models to secure worker for averaging
-					for model in local_models:
-						model.move(self.secure_worker)
+					# for model in local_models:
+						# model.move(self.secure_worker)
 
-					# Average all the local models of the edge server
-					self.model_averaging(local_models, target_model=edge_server_models[k], edge_averaging=True)					
+					# Average all the connected workers' models of the edge server
+					self.model_averaging(assignment[edge_server], target_model=edge_server_models[k], edge_averaging=True)					
 
 					# Signal that new model is available
 					is_updated[k] = True
