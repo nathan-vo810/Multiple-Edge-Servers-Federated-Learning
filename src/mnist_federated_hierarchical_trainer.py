@@ -92,7 +92,7 @@ class FederatedHierachicalTrainer:
 			distances = [np.linalg.norm(worker["location"] - server_location) for server_location in server_locations]
 			distance_matrix.append(distances)
 		
-		return distance_matrix
+		return np.array(distance_matrix)
 
 
 	def weight_difference(self, model_A, model_B):
@@ -214,6 +214,7 @@ class FederatedHierachicalTrainer:
 			cost = alpha*distance_matrix[i][:] + (1-alpha)*np.sum([z[i][s]*(1-z[j][s])*weight_difference_matrix[i][j] for j in range(i) for s in range(len(self.edge_servers))])
 			server_indices = np.argpartition(cost, edge_servers_per_worker)
 			for server_id in server_indices[:edge_servers_per_worker]:
+				z[i][server_id] = 1
 				assignment[self.edge_servers[server_id]].append(worker)
 
 		return assignment
