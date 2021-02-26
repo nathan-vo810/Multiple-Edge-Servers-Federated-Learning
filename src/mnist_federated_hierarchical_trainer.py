@@ -97,30 +97,31 @@ class FederatedHierachicalTrainer:
 
 	def weight_difference(self, model_A, model_B):
 		difference = 0
-		with torch.no_grads():
+		with torch.no_grad():
 			for param_A, param_B in zip(model_A.parameters(), model_B.parameters()):
-				difference += torch.norm(param_A.get_().data - param_B.get_().data)
+				difference += torch.norm(param_A.data - param_B.data)
 
 		return difference
 
 
 	def calculate_weight_difference_matrix(self):
-		difference_matrix = []
+		difference_matrix = np.zeros((len(self.workers), len(self.workers)))
 
 		for i, worker_A in enumerate(self.workers):
-			difference_matrix[i] = []
+			print(f"Worker {i+1}/{len(self.workers)}")
+			model_A = worker_A["model"].get_()
+			
 			for j, worker_B in enumerate(self.workers):
-				if i == j:
-					difference_matrix[i].append(0)
-				else:
-					model_A = worker_A["model"]
-					model_B = worker_B["model"]
+				if i != j:
+					# model_A = worker_A["model"]
+					model_B = worker_B["model"].get_()
 
-					difference = weight_difference(model_A, model_B)
-					difference_matrix.append(difference)
+					difference = self.weight_difference(model_A, model_B)
+					difference_matrix[i][j]= difference
 
-					worker_A["model"] = model_A.send(worker_A["instance"])
 					worker_B["model"] = model_B.send(worker_B["instance"])
+
+			worker_A["model"] = model_A.send(worker_A["instance"])
 
 		return difference_matrix
 
@@ -189,12 +190,15 @@ class FederatedHierachicalTrainer:
 
 
 		# Calculate the distances between workers and edge servers
+		print("Calculate distance matrix")
 		distance_matrix = self.calculate_distance_matrix()
 
 		# Calculate the weight differences between workers
+		print("Calculate weight difference matrix")
 		weight_difference_matrix = self.calculate_weight_difference_matrix()
 
 		# Start the assignment
+		print("Assign workers to edge server")
 		assignment = {}
 		z = np.zeros((len(self.workers), len(self.edge_servers)))
 
