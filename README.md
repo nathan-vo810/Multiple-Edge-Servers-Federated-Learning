@@ -3,7 +3,14 @@
 This repository contains the source code for Multiple Edge Servers Assignment for Local Device in Hierarchical Federated Learning
 
 ## Getting Started
-Install PySyft to support Federated Learning. Follow the tutorial [here](https://pysyft.readthedocs.io/en/latest/installing.html)
+### Install Anaconda
+* Download Anaconda: ```curl -O https://repo.anaconda.com/archive/Anaconda3-2020.11-Linux-x86_64.sh```
+* Activate Anaconda: ```source ~/.bashrc```
+* Create the environment: ```conda create -n pysyft python=3.8```
+* Activate the environment: ```conda activate pysyft```
+
+### Install PySyft to support Federated Learning
+* Install PySyft version 0.2.9: ```pip install "syft<0.3.0"```
 
 ## Running The Code
 To run the code, go to terminal and type 
