@@ -107,19 +107,22 @@ class FederatedHierachicalTrainer:
 	def calculate_weight_difference_matrix(self):
 		difference_matrix = np.zeros((len(self.workers), len(self.workers)))
 
-		for i, worker_A in enumerate(self.workers):
+		for i in range(len(self.workers)):
 			print(f"Worker {i+1}/{len(self.workers)}")
+			
+			worker_A = self.workers[i]
 			model_A = worker_A["model"].get_()
 			
-			for j, worker_B in enumerate(self.workers):
-				if i != j:
-					# model_A = worker_A["model"]
-					model_B = worker_B["model"].get_()
+			for j in range(i+1, len(self.workers)):
+				
+				worker_B = self.workers[j]
+				model_B = worker_B["model"].get_()
 
-					difference = self.weight_difference(model_A, model_B)
-					difference_matrix[i][j]= difference
+				difference = self.weight_difference(model_A, model_B)
+				difference_matrix[i][j] = difference
+				difference_matrix[j][i] = difference
 
-					worker_B["model"] = model_B.send(worker_B["instance"])
+				worker_B["model"] = model_B.send(worker_B["instance"])
 
 			worker_A["model"] = model_A.send(worker_A["instance"])
 
