@@ -174,7 +174,7 @@ class FederatedHierachicalTrainer:
 		for epoch in range(no_epochs_local):
 			print(f"Epoch {epoch+1}/{no_epochs_local}")
 			# Train each worker with its own local data
-			for worker_id, worker in enumerate(self.workers):
+			for worker_id, worker in tqdm(enumerate(self.workers)):
 
 				if isinstance(worker["model"], list):
 					if len(worker["model"]) > 1:
@@ -184,7 +184,6 @@ class FederatedHierachicalTrainer:
 						worker["model"] = worker["model"][0]
 
 				# Train worker's model
-				print(f"Train worker {worker_id}")
 				for batch_idx, (images, labels) in enumerate(train_data[worker_id]):
 					
 					images, labels = images.to(device), labels.to(device)
@@ -315,13 +314,15 @@ class FederatedHierachicalTrainer:
 			if is_updated:
 				for server_id in range(len(self.edge_servers)):
 					connected_workers_ids = np.where(assignment[:,server_id] == 1)[0]
-					self.send_model_to_workers(source=edge_server_models[server_id], worker_ids=connected_workers_ids)
+					if len(connected_workers_ids) > 0:
+						self.send_model_to_workers(source=edge_server_models[server_id], worker_ids=connected_workers_ids)
 				is_updated = False 
 
 			# Train each worker
 			for worker_id, worker in enumerate(self.workers):
 				# If there are multiple models per worker, average them
-				print(f"Worker {worker_id} has {len(worker['model'])} models")
+				if isinstance(worker["model"], list):
+					print(f"Worker {worker_id} has {len(worker['model'])} models")
 
 				if isinstance(worker["model"], list):
 					if len(worker["model"]) > 1:
@@ -360,6 +361,7 @@ class FederatedHierachicalTrainer:
 			
 			if (epoch+1) % self.global_update == 0:
 				print("---- Send edge servers to cloud server ----")
+				models = [model for server_id, model in enumerate(edge_server_models) if assignment.sum(axis=0)[server_id] > 0]
 				self.model = self.average_models(edge_server_models, local=False)
 
 				# Validate new model
