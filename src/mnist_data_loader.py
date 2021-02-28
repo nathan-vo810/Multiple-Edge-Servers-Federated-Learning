@@ -1,3 +1,5 @@
+from tqdm import tqdm
+
 import torch
 import syft
 
@@ -53,7 +55,6 @@ class MNIST_DataLoader:
 		
 		print("Distributing data...")
 		federated_iid_data_loader = syft.FederatedDataLoader(data.federate(self.workers), batch_size=self.batch_size, shuffle=True)
-		print("Done!")
 
 		return federated_iid_data_loader
 
@@ -68,13 +69,12 @@ class MNIST_DataLoader:
 			federated_non_iid_data[worker_number] = []
 
 		print("Distributing data...")
-		for worker_number, worker_data in workers_data.items():
-			print(f"Sending data to worker_{worker_number}")
+		for worker_number, worker_data in tqdm(workers_data.items()):
+			# print(f"Sending data to worker_{worker_number}")
 			worker = self.workers[worker_number]
 			for batch_idx, (images, labels) in enumerate(worker_data):
 				images = normalize(images).unsqueeze(1)
 				federated_non_iid_data[worker_number].append((images.send(worker), labels.send(worker)))
-		print("Done!")
 
 		return federated_non_iid_data
 

@@ -1,5 +1,6 @@
 import os
 import random
+from tqdm import tqdm
 
 import numpy as np
 import torch
@@ -107,9 +108,7 @@ class FederatedHierachicalTrainer:
 	def calculate_weight_difference_matrix(self):
 		difference_matrix = np.zeros((len(self.workers), len(self.workers)))
 
-		for i in range(len(self.workers)):
-			print(f"Worker {i+1}/{len(self.workers)}")
-			
+		for i in tqdm(range(len(self.workers))):
 			worker_A = self.workers[i]
 			model_A = worker_A["model"].get_()
 			
@@ -149,18 +148,15 @@ class FederatedHierachicalTrainer:
 		distance_matrix = np.transpose(distance_matrix)
 
 		workers_per_server = len(self.workers) / len(self.edge_servers)
-		workers_assigned = [False] * len(self.workers)
-
-		assignment = {}
-		for i, edge_server in enumerate(self.edge_servers):
-			assignment[edge_server] = []
-			while len(assignment[edge_server]) < workers_per_server:
-				nearest_worker_id = np.argmin(distance_matrix[i], axis=0)
-				if workers_assigned[nearest_worker_id] == False:
-					workers_assigned[nearest_worker_id] = True
-					assignment[edge_server].append(nearest_worker_id)
+		assignment = np.zeros((len(self.workers), len(self.edge_servers)), dtype=np.int8)
 		
-				distance_matrix[i][nearest_worker_id] = 10
+		for server_id in range(len(self.edge_servers)):
+			while assignment.sum(axis=0)[server_id] < workers_per_server:
+				nearest_worker_id = np.argmin(distance_matrix[server_id])
+				if np.sum(assignment[nearest_worker_id]) == 0:
+					assignment[nearest_worker_id][server_id] = 1
+		
+				distance_matrix[server_id][nearest_worker_id] = 100
 
 		return assignment
 
@@ -169,21 +165,30 @@ class FederatedHierachicalTrainer:
 		# Send models from edge to nearest workers
 		shortest_distance_assignment = self.shortest_distance_workers_servers_assign()
 
-		for k, edge_server in enumerate(self.edge_servers):
-			self.send_model_to_workers(source=edge_server_models[k], worker_ids=shortest_distance_assignment[edge_server])
+		for server_id in tqdm(range(len(self.edge_servers))):
+			connected_workers_ids = np.where(shortest_distance_assignment[:,server_id] == 1)[0]
+			self.send_model_to_workers(source=edge_server_models[server_id], worker_ids=connected_workers_ids)
 
 		# Train the local models for a few epochs
+		print("---- Assignment Phase Model Training ----")
 		for epoch in range(no_epochs_local):
+			print(f"Epoch {epoch+1}/{no_epochs_local}")
 			# Train each worker with its own local data
-			for i, worker in enumerate(self.workers):
+			for worker_id, worker in enumerate(self.workers):
+				if len(worker["model"]) > 1:
+					average_model = self.average_models(worker["model"], local=True)
+					worker["model"] = average_model.send(worker["instance"])
+				else:
+					worker["model"] = worker["model"][0]
+
 				# Train worker's model
-				print(f"Worker {i+1}/{len(self.workers)}")
-				for batch_idx, (images, labels) in enumerate(train_data[i]):
+				print(f"Train worker {worker_id}")
+				for batch_idx, (images, labels) in enumerate(train_data[worker_id]):
 					
 					images, labels = images.to(device), labels.to(device)
 
 					if (batch_idx+1)%100==0:
-						print(f"Processed {batch_idx+1}/{len(train_data[i])} batches")
+						print(f"Processed {batch_idx+1}/{len(train_data[worker_id])} batches")
 
 					worker["optim"].zero_grad()
 					output = worker["model"].forward(images)
@@ -191,116 +196,109 @@ class FederatedHierachicalTrainer:
 					worker["loss"].backward()
 					worker["optim"].step()
 
-
 		# Calculate the distances between workers and edge servers
-		print("Calculate distance matrix")
+		print("-- Calculate distance matrix")
 		distance_matrix = self.calculate_distance_matrix()
 
 		# Calculate the weight differences between workers
-		print("Calculate weight difference matrix")
+		print("-- Calculate weight difference matrix")
 		weight_difference_matrix = self.calculate_weight_difference_matrix()
 
 		# Start the assignment
-		print("Assign workers to edge server")
-		assignment = {}
-		z = np.zeros((len(self.workers), len(self.edge_servers)))
-
-		workers_assigned = [0] * len(self.workers)
-
-		for edge_server in self.edge_servers:
-			assignment[edge_server] = []
+		print("-- Assign workers to edge server")
+		assignment = np.zeros((len(self.workers), len(self.edge_servers)))
 
 		for i, worker in enumerate(self.workers):
-			cost = alpha*distance_matrix[i][:] + (1-alpha)*np.sum([z[i][s]*(1-z[j][s])*weight_difference_matrix[i][j] for j in range(i) for s in range(len(self.edge_servers))])
+			cost = alpha*distance_matrix[i][:] + (1-alpha)*np.sum([assignment[i][s]*(1-assignment[j][s])*weight_difference_matrix[i][j] for j in range(i) for s in range(len(self.edge_servers))])
 			server_indices = np.argpartition(cost, edge_servers_per_worker)
 			for server_id in server_indices[:edge_servers_per_worker]:
-				z[i][server_id] = 1
-				assignment[self.edge_servers[server_id]].append(i)
+				assignment[i][server_id] = 1
+
+		# Clear models
+		for worker in self.workers:
+			worker["model"] = None
 
 		return assignment
 
 
 	def random_workers_servers_assign(self):
-		workers_assigned = [False] * len(self.workers)
 		workers_per_server = len(self.workers)/len(self.edge_servers)
 
-		assignment = {}
+		assignment = np.zeros((len(self.workers), len(self.edge_servers)))
 
-		for edge_server in self.edge_servers:
-			assignment[edge_server] = []
-			while len(assignment[edge_server]) < workers_per_server:
+		for server_id in range(len(self.edge_servers)):
+			while assignment.sum(axis=0)[server_id] < workers_per_server:
 				worker_id = random.randint(0, len(self.workers)-1)
-				if workers_assigned[worker_id] == False:
-					workers_assigned[worker_id] = True
-					# assignment[edge_server].append(self.workers[worker_id])
-					assignment[edge_server].append(worker_id)
+				if np.sum(assignment[worker_id]) == 0:
+					assignment[worker_id][server_id] = 1
 
 		return assignment
 
 
 	def send_model_to_workers(self, source, worker_ids):
-		worker_models = []
-		worker_optims = []
-		worker_criterions = []
-		worker_losses = []
-
 		for worker_id in worker_ids:
 			worker = self.workers[worker_id]
 
 			model_clone = source.copy().send(worker["instance"])
-			worker["model"] = model_clone
+			
+			if worker["model"] == None:
+				worker["model"] = [model_clone]
+			else:
+				worker["model"].append(model_clone)
 
 			worker["optim"] = optim.SGD(model_clone.parameters(), lr=self.lr)
 			worker["criterion"] = nn.CrossEntropyLoss() 
 
 
-	def model_averaging(self, model_ids, target_model, edge_averaging):
+	def average_models(self, models, local):
+		# Create a model to hold the data
+		averaged_model = self.model.copy()
+
+		# Average the models
 		with torch.no_grad():
 			averaged_values = {}
-			for name, param in target_model.named_parameters():
+			for name, param in averaged_model.named_parameters():
 				averaged_values[name] = nn.Parameter(torch.zeros_like(param.data))
 
-			if edge_averaging == True:
-				for model_id in model_ids:
-					worker = self.worker[model_id]
+			if local == True:
+				for i in range(len(models)):
+					model_location = models[i].location
+					model = models[i].get_()
 
-					model = worker["model"].get_()
-
-					for name, param in model.named_parameters():		
+					for name, param in model.named_parameters():
 						averaged_values[name] += param.data
-				
-					worker["model"] = model.send(worker["instance"])
-			else:
-				# Global Averaging
-				models = model_ids
 
+					models[i] = model.send(model_location)
+			else:
 				for model in models:
 					for name, param in model.named_parameters():	
 						averaged_values[name] += param.data
-					
-			for name, param in target_model.named_parameters():
-				param.data = (averaged_values[name]/len(local_models))
+
+			for name, param in averaged_model.named_parameters():
+				param.data = (averaged_values[name]/len(models))
+
+			return averaged_model
 
 
 	def train(self):		
 
 		if self.iid == True:
-			print("Train in Federated Hierachical IID Mode")
+			print("---- Train in Federated Hierachical IID Mode ----")
 			train_data = self.data_loader.prepare_federated_iid_data_parallel(train=True)
 		else:
-			print("Train in Federated Hierarchical Non-IID Mode")
+			print("---- Train in Federated Hierarchical Non-IID Mode ----")
 			train_data = self.data_loader.prepare_federated_pathological_non_iid(train=True)
 		
 		# Send the global model to each edge server
-		print("--Send global model to edge servers--")
+		print("---- Send global model to edge servers ----")
 		edge_server_models = [self.model.copy()] * len(self.edge_servers)
-		is_updated = [True]*len(self.edge_servers)
+		is_updated = True
 
 		# Assign workers to edge servers
 
 		# assignment = self.random_workers_servers_assign()
 		# assignment = self.shortest_distance_workers_servers_assign()
-		assignment = self.multiple_edges_assignment(edge_server_models=edge_server_models, edge_servers_per_worker=3, alpha=0.5, train_data=train_data, no_epochs_local=1)
+		assignment = self.multiple_edges_assignment(edge_server_models=edge_server_models, edge_servers_per_worker=3, alpha=0.2, train_data=train_data, no_epochs_local=4)
 
 
 		print("Start training...")
@@ -311,30 +309,30 @@ class FederatedHierachicalTrainer:
 		for epoch in range(self.num_epochs):
 			print(f"Epoch {epoch+1}/{self.num_epochs}")
 
-			# Train each edge server
-			for k, edge_server in enumerate(self.edge_servers):
-				print(f"Edge Server {k+1}/{len(self.edge_servers)}")
+			# Send the edge servers' models to all the workers
+			if is_updated:
+				for server_id in range(len(self.edge_servers)):
+					connected_workers_ids = np.where(assignment[:,server_id] == 1)[0]
+					self.send_model_to_workers(source=edge_server_models[server_id], worker_ids=connected_workers_ids)
+				is_updated = False 
 
-				# If there is a new model, send the edge model to the connected workers
-				if is_updated[k]:
-					print("--Send edge model to local workers--")
-					self.send_model_to_workers(source=edge_server_models[k], worker_ids=assignment[edge_server])
-					is_updated[k] = False
+			# Train each worker
+			for worker_id, worker in enumerate(self.workers):
+				# If there are multiple models per worker, average them
+				print(f"Worker {worker_id} has {len(worker['model'])} models")
 
-				# Train each worker with its own local data
-				for i in range(len(assignment[edge_server])):
+				if len(worker["model"]) > 1:
+					average_model = self.average_models(worker["model"], local=True)
+					worker["model"] = average_model.send(worker["instance"])
+				else:
+					worker["model"] = worker["model"][0]
 
-					worker_id = assignment[edge_server][i]
-					worker = self.workers[worker_id]
-
-					# Train worker's model
-					print(f"Worker {i+1}/{len(assignment[edge_server])} - ID {worker_id}")
-					for batch_idx, (images, labels) in enumerate(train_data[worker_id]):
+				for batch_idx, (images, labels) in enumerate(train_data[worker_id]):
 						
 						images, labels = images.to(device), labels.to(device)
 
 						if (batch_idx+1)%100==0:
-							print(f"Processed {batch_idx+1}/{len(train_data[i])} batches")
+							print(f"Processed {batch_idx+1}/{len(train_data[worker_id])} batches")
 
 						worker["optim"].zero_grad()
 						output = worker["model"].forward(images)
@@ -342,31 +340,26 @@ class FederatedHierachicalTrainer:
 						loss.backward()
 						worker["optim"].step()
 
-			# After every E epoch, average the models at each edge server
 			if (epoch+1) % self.edge_update == 0:
-				print("--Edge Models Average--")
-				for k, edge_server in enumerate(self.edge_servers):
-					# List of connected workers models
-					# local_models = [self.workers[worker_id]["model"] for worker_id in assignment[edge_server]]
-					
-					# Move local models to secure worker for averaging
-					# for model in local_models:
-						# model.move(self.secure_worker)
+				print("---- Send local models to edge servers ----")
+				is_updated = True
+				for server_id, edge_server in enumerate(self.edge_servers):
+					connected_workers_ids = np.where(assignment[:,server_id] == 1)[0]
+					models = [self.workers[worker_id]["model"] for worker_id in connected_workers_ids]
 
-					# Average all the connected workers' models of the edge server
-					self.model_averaging(assignment[edge_server], target_model=edge_server_models[k], edge_averaging=True)					
+					edge_server_models[server_id] = self.average_models(models, local=True)
 
-					# Signal that new model is available
-					is_updated[k] = True
+				for worker in self.workers:
+					worker["model"] = None
 
-			# After every G epoch average the edge models at the cloud
+					#TODO: clear PySyft Tensor models
+
+			
 			if (epoch+1) % self.global_update == 0:
-				print("--Global Model Average--")
-				# for i in range(len(edge_server_models)):
-				# 	edge_server_models[i] = edge_server_models[i].send(self.secure_worker)
+				print("---- Send edge servers to cloud server ----")
+				self.model = self.average_models(edge_server_models, local=False)
 
-				self.model_averaging(edge_server_models, target_model=self.model, edge_averaging=False)
-
+				# Validate new model
 				accuracy = self.validate(load_weight=False)
 				accuracy_logs.append(accuracy)
 				if accuracy > best_acc:
@@ -376,7 +369,10 @@ class FederatedHierachicalTrainer:
 				# Send the global model to edge servers
 				print("--Send global model to edge servers--")
 				edge_server_models = [self.model.copy()] * len(self.edge_servers)
-				is_updated = [True] * len(self.edge_servers)
+				is_updated = True
+
+				for worker in self.workers:
+					worker["model"] = None
 				
 		print("Finish training!")
 
