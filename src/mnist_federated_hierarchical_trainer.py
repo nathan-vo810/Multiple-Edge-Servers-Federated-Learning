@@ -175,11 +175,13 @@ class FederatedHierachicalTrainer:
 			print(f"Epoch {epoch+1}/{no_epochs_local}")
 			# Train each worker with its own local data
 			for worker_id, worker in enumerate(self.workers):
-				if len(worker["model"]) > 1:
-					average_model = self.average_models(worker["model"], local=True)
-					worker["model"] = average_model.send(worker["instance"])
-				else:
-					worker["model"] = worker["model"][0]
+
+				if isinstance(worker["model"], list):
+					if len(worker["model"]) > 1:
+						average_model = self.average_models(worker["model"], local=True)
+						worker["model"] = average_model.send(worker["instance"])
+					else:
+						worker["model"] = worker["model"][0]
 
 				# Train worker's model
 				print(f"Train worker {worker_id}")
@@ -321,11 +323,12 @@ class FederatedHierachicalTrainer:
 				# If there are multiple models per worker, average them
 				print(f"Worker {worker_id} has {len(worker['model'])} models")
 
-				if len(worker["model"]) > 1:
-					average_model = self.average_models(worker["model"], local=True)
-					worker["model"] = average_model.send(worker["instance"])
-				else:
-					worker["model"] = worker["model"][0]
+				if isinstance(worker["model"], list):
+					if len(worker["model"]) > 1:
+						average_model = self.average_models(worker["model"], local=True)
+						worker["model"] = average_model.send(worker["instance"])
+					else:
+						worker["model"] = worker["model"][0]
 
 				for batch_idx, (images, labels) in enumerate(train_data[worker_id]):
 						
