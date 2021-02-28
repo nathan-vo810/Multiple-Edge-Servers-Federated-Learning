@@ -162,15 +162,18 @@ class FederatedHierachicalTrainer:
 
 
 	def multiple_edges_assignment(self, edge_server_models, edge_servers_per_worker, alpha, train_data, no_epochs_local):
+		print("---- Assignment Phase Model Training ----")
+
 		# Send models from edge to nearest workers
 		shortest_distance_assignment = self.shortest_distance_workers_servers_assign()
 
+		print("-- Send edge server models to workers --")
 		for server_id in tqdm(range(len(self.edge_servers))):
 			connected_workers_ids = np.where(shortest_distance_assignment[:,server_id] == 1)[0]
-			self.send_model_to_workers(source=edge_server_models[server_id], worker_ids=connected_workers_ids)
+			if len(connected_workers_ids) > 0:
+				self.send_model_to_workers(source=edge_server_models[server_id], worker_ids=connected_workers_ids)
 
 		# Train the local models for a few epochs
-		print("---- Assignment Phase Model Training ----")
 		for epoch in range(no_epochs_local):
 			print(f"Epoch {epoch+1}/{no_epochs_local}")
 			# Train each worker with its own local data
@@ -312,18 +315,16 @@ class FederatedHierachicalTrainer:
 
 			# Send the edge servers' models to all the workers
 			if is_updated:
-				for server_id in range(len(self.edge_servers)):
+				print("---- Send edge server models to workers ----")
+				for server_id in tqdm(range(len(self.edge_servers))):
 					connected_workers_ids = np.where(assignment[:,server_id] == 1)[0]
 					if len(connected_workers_ids) > 0:
 						self.send_model_to_workers(source=edge_server_models[server_id], worker_ids=connected_workers_ids)
 				is_updated = False 
 
 			# Train each worker
-			for worker_id, worker in enumerate(self.workers):
+			for worker_id, worker in tqdm(enumerate(self.workers)):
 				# If there are multiple models per worker, average them
-				if isinstance(worker["model"], list):
-					print(f"Worker {worker_id} has {len(worker['model'])} models")
-
 				if isinstance(worker["model"], list):
 					if len(worker["model"]) > 1:
 						average_model = self.average_models(worker["model"], local=True)
@@ -383,7 +384,7 @@ class FederatedHierachicalTrainer:
 
 
 	def validate(self, load_weight=False):
-		print("-----------------------------------------")
+		print("-------------------------------------------")
 		print("Start validating...")
 
 		if load_weight == True:
@@ -407,6 +408,6 @@ class FederatedHierachicalTrainer:
 
 		print("Number of corrects: {}/{}".format(corrects, len(test_data)*self.batch_size))
 		print("Accuracy: {}%".format(accuracy))
-		print("-----------------------------------------")
+		print("-------------------------------------------")
 
 		return accuracy
