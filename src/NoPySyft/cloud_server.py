@@ -14,7 +14,7 @@ from data_loader import MNISTDataLoader
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class CloudServer:
-	def __init__(self, no_edge_servers, no_clients, num_epochs, batch_size, learning_rate, edge_update, global_update):
+	def __init__(self, no_edge_servers, no_clients, num_epochs, batch_size, learning_rate, edge_update, global_update, model_weight_dir):
 		self.model = CNNModel().to(device)
 
 		self.num_epochs = num_epochs
@@ -30,6 +30,8 @@ class CloudServer:
 
 		self.edge_update = edge_update
 		self.global_update = global_update
+
+		self.model_weight_dir = model_weight_dir
 
 
 	def average_models(self, models):
@@ -235,7 +237,7 @@ class CloudServer:
 
 			# Send the edge servers' models to all the workers
 			if is_updated:
-				print("---- Send edge server models to clients ----")
+				print("---- [DELIVER MODEL] Send edge server models to clients ----")
 				self.send_model_to_clients()
 				is_updated = False 
 
@@ -246,7 +248,7 @@ class CloudServer:
 		
 			# Average models at edge servers
 			if (epoch+1) % self.edge_update == 0:
-				print("---- Send local models to edge servers ----")
+				print("---- [UPDATE MODEL] Send local models to edge servers ----")
 				is_updated = True
 				for edge_server in self.edge_servers:
 					models = [self.clients[client_id].model["model"] for client_id in edge_server.connected_clients]
@@ -257,7 +259,7 @@ class CloudServer:
 
 			# Average models at cloud servers
 			if (epoch+1) % self.global_update == 0:
-				print("---- Send edge servers to cloud server ----")
+				print("---- [UPDATE MODEL] Send edge servers to cloud server ----")
 				models = [edge_server.model for edge_server in self.edge_servers if len(edge_server.connected_clients) > 0]
 				self.model = self.average_models(models)
 
@@ -269,7 +271,7 @@ class CloudServer:
 					self.save_model()
 				
 				# Send the global model to edge servers
-				print("--Send global model to edge servers--")
+				print("---- [DELIVER MODEL] Send global model to edge servers ----")
 				self.send_model_to_edge_servers()
 				
 				for client in self.clients:
