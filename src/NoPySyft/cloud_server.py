@@ -30,10 +30,8 @@ class CloudServer:
 		self.global_update = global_update
 
 
-	def average_edge_server_models(self):
+	def average_models(self, models):
 		averaged_model = copy.deepcopy(self.model)
-
-		models = [edge_server.model for edge_server in self.edge_servers if len(edge_server.connected_clients) > 0]
 
 		with torch.no_grad():
 			averaged_values = {}
@@ -47,7 +45,7 @@ class CloudServer:
 			for name, param in averaged_model.named_parameters():
 				param.data = (averaged_values[name]/len(models))
 
-		self.model = averaged_model
+		return averaged_model
 
 
 	def send_model_to_edge_servers(self):
@@ -235,12 +233,12 @@ class CloudServer:
 
 			# Send the edge servers' models to all the workers
 			if is_updated:
-				print("---- Send edge server models to workers ----")
+				print("---- Send edge server models to clients ----")
 				self.send_model_to_clients()
 				is_updated = False 
 
 			# Train each worker
-			for client in self.clients:
+			for i, client in tqdm(enumerate(self.clients)):
 				client.train(device)
 
 		
@@ -249,7 +247,8 @@ class CloudServer:
 				print("---- Send local models to edge servers ----")
 				is_updated = True
 				for edge_server in self.edge_servers:
-					edge_server.average_client_models()
+					models = [self.clients[client_id].model["model"] for client_id in edge_server.connected_clients]
+					edge_server.model = self.average_models(models)
 
 				for client in self.clients:
 					client.clear_model()
@@ -257,7 +256,8 @@ class CloudServer:
 			# Average models at cloud servers
 			if (epoch+1) % self.global_update == 0:
 				print("---- Send edge servers to cloud server ----")
-				self.model = self.average_edge_server_models()
+				models = [edge_server.model for edge_server in self.edge_servers if len(edge_server.connected_clients) > 0]
+				self.model = self.average_models(models)
 
 				# Validate new model
 				accuracy = self.validate(load_weight=False)

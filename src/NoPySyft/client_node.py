@@ -4,6 +4,7 @@ import copy
 import torch
 
 from mnist_model import CNNModel
+from torch import nn
 
 
 class ClientNode:
