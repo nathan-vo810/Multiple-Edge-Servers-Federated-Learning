@@ -1,3 +1,4 @@
+import os
 import torch
 import copy
 import numpy as np
@@ -18,6 +19,7 @@ class CloudServer:
 
 		self.num_epochs = num_epochs
 		self.learning_rate = learning_rate
+		self.batch_size = batch_size
 		
 		self.edge_servers = self.generate_edge_servers(no_edge_servers)
 		self.clients = self.generate_clients(no_clients)
@@ -304,3 +306,10 @@ class CloudServer:
 		print("-------------------------------------------")
 
 		return accuracy
+
+	def save_model(self):
+		print("Saving model...")
+		if not os.path.exists(self.model_weight_dir):
+			os.makedirs(self.model_weight_dir)
+		torch.save(self.model.state_dict(), self.model_weight_dir + "/weight.pth")
+		print("Model saved!")
