@@ -13,7 +13,7 @@ from data_loader import MNISTDataLoader
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class CloudServer:
-	def __init__(self, no_edge_servers, no_clients, num_epochs, batch_size, learning_rate):
+	def __init__(self, no_edge_servers, no_clients, num_epochs, batch_size, learning_rate, edge_update, global_update):
 		self.model = CNNModel().to(device)
 
 		self.num_epochs = num_epochs
@@ -25,6 +25,9 @@ class CloudServer:
 		self.data_loader = MNISTDataLoader(batch_size)
 
 		self.assignment = None
+
+		self.edge_update = edge_update
+		self.global_update = global_update
 
 
 	def average_edge_server_models(self):

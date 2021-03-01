@@ -1,5 +1,7 @@
 import random
 import numpy as np
+import copy
+import torch
 
 from mnist_model import CNNModel
 
@@ -26,7 +28,7 @@ class ClientNode:
 
 
 	def average_models(self):
-		averaged_model = copy.deepcopy(self.model)
+		averaged_model = copy.deepcopy(self.model["model"][0])
 
 		models = self.model["model"]
 
@@ -53,7 +55,7 @@ class ClientNode:
 	def train(self, device):
 		if isinstance(self.model["model"], list):
 			if len(self.model["model"]) > 1:
-				self.average_models(self.model["model"], local=True)
+				self.average_models()
 			else:
 				self.model["model"] = self.model["model"][0]
 
