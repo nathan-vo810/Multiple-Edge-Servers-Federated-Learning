@@ -34,6 +34,15 @@ class CloudServer:
 		self.model_weight_dir = model_weight_dir
 
 
+	def sum_model(self, model):
+		total = 0
+		with torch.no_grad():
+			for name, param in model.named_parameters():
+				total += torch.sum(param.data)
+
+		return total
+
+
 	def average_models(self, models):
 		averaged_model = copy.deepcopy(self.model)
 
@@ -48,6 +57,8 @@ class CloudServer:
 
 			for name, param in averaged_model.named_parameters():
 				param.data = (averaged_values[name]/len(models))
+
+		print(self.sum(averaged_model))
 
 		return averaged_model
 
@@ -69,9 +80,6 @@ class CloudServer:
 					client.model["model"] = [model]
 				else:
 					client.model["model"].append(model)
-
-				client.model["optim"] = optim.SGD(model.parameters(), lr=self.learning_rate)
-				client.model["criterion"] = nn.CrossEntropyLoss() 
 
 
 	def generate_edge_servers(self, no_edge_servers):
@@ -273,6 +281,7 @@ class CloudServer:
 				# Send the global model to edge servers
 				print("---- [DELIVER MODEL] Send global model to edge servers ----")
 				self.send_model_to_edge_servers()
+				is_updated = True
 				
 				for client in self.clients:
 					client.clear_model()

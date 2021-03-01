@@ -60,6 +60,9 @@ class ClientNode:
 			else:
 				self.model["model"] = self.model["model"][0]
 
+		self.model["optim"] = optim.SGD(model.parameters(), lr=self.learning_rate)
+		self.model["criterion"] = nn.CrossEntropyLoss() 
+
 		for batch_idx, (images, labels) in enumerate(self.data):
 			images, labels = images.to(device), labels.to(device)
 
@@ -72,4 +75,14 @@ class ClientNode:
 			loss.backward()
 			self.model["optim"].step()
 
+		print(self.sum(model))
+
+
+	def sum_model(self):
+		total = 0
+		with torch.no_grad():
+			for name, param in model.named_parameters():
+				total += param.data
+
+		return total
 	
