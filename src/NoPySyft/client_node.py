@@ -47,7 +47,7 @@ class ClientNode:
 			for name, param in averaged_model.named_parameters():
 				param.data = (averaged_values[name]/len(models))
 
-		self.model["model"] = averaged_model
+		return averaged_model
 
 
 	def clear_model(self):
@@ -58,7 +58,7 @@ class ClientNode:
 	def train(self, device):
 		if isinstance(self.model["model"], list):
 			if len(self.model["model"]) > 1:
-				self.average_models()
+				self.model["model"] = self.average_models()
 			else:
 				self.model["model"] = self.model["model"][0]
 

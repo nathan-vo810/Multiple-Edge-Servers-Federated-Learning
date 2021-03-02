@@ -132,7 +132,7 @@ class CloudServer:
 		return difference_matrix
 
 
-	def random_workers_servers_assign(self):
+	def random_clients_servers_assign(self):
 		clients_per_server = len(self.clients)/len(self.edge_servers)
 
 		assignment = np.zeros((len(self.clients), len(self.edge_servers)), dtype=np.int8)
@@ -147,7 +147,7 @@ class CloudServer:
 		return assignment
 
 
-	def shortest_distance_workers_servers_assign(self):
+	def shortest_distance_clients_servers_assign(self):
 		distance_matrix = self.calculate_distance_matrix()
 		distance_matrix = np.transpose(distance_matrix)
 
@@ -170,7 +170,7 @@ class CloudServer:
 		print("---- Assignment Phase Model Training ----")
 
 		# Send models from edge to nearest workers
-		shortest_distance_assignment = self.shortest_distance_workers_servers_assign()
+		shortest_distance_assignment = self.shortest_distance_clients_servers_assign()
 
 		print("-- Send edge server models to workers --")
 		self.send_model_to_clients()
@@ -222,6 +222,8 @@ class CloudServer:
 		is_updated = True
 
 		# Assigning clients to edge server
+		# self.random_clients_servers_assign()
+		# self.shortest_distance_clients_servers_assign()
 		self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.2, no_local_epochs=4)
 
 		# Train

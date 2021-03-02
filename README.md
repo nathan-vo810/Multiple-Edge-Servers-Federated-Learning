@@ -1,6 +1,6 @@
 # Multiple Edge Servers Assignment for Local Device in Hierarchical Federated Learning
 
-This repository contains the source code for Multiple Edge Servers Assignment for Local Device in Hierarchical Federated Learning
+This folder contains the source code for Multiple Edge Servers Assignment for Local Device in Hierarchical Federated Learning using PySyft framework
 
 ## Getting Started
 ### Install Anaconda
