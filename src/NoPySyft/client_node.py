@@ -4,12 +4,13 @@ import copy
 import torch
 
 from mnist_model import CNNModel
-from torch import nn
+from torch import nn, optim
 
+random.seed(1)
+np.random.seed(1)
 
 class ClientNode:
-	def __init__(self, id):
-		self.id = id
+	def __init__(self, learning_rate):
 		self.model = {"model": None, "optim": None, "criterion": None, "loss": None}
 		self.data = []
 		self.location = self.generate_location()
@@ -74,15 +75,3 @@ class ClientNode:
 			loss = self.model["criterion"](output, labels)
 			loss.backward()
 			self.model["optim"].step()
-
-		print(self.sum(model))
-
-
-	def sum_model(self):
-		total = 0
-		with torch.no_grad():
-			for name, param in model.named_parameters():
-				total += param.data
-
-		return total
-	

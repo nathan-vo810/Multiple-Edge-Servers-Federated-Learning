@@ -1,8 +1,8 @@
 import torch
-import copy
 import numpy as np
 import random
 
+random.seed(1)
 
 class EdgeServerNode:
 	def __init__(self, model):

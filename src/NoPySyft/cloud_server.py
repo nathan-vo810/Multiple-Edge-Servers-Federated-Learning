@@ -4,7 +4,7 @@ import copy
 import numpy as np
 from tqdm import tqdm
 
-from torch import nn, optim
+from torch import nn
 
 from mnist_model import CNNModel
 from edge_server_node import EdgeServerNode
@@ -12,6 +12,7 @@ from client_node import ClientNode
 from data_loader import MNISTDataLoader
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+torch.manual_seed(1)
 
 class CloudServer:
 	def __init__(self, no_edge_servers, no_clients, num_epochs, batch_size, learning_rate, edge_update, global_update, model_weight_dir):
@@ -34,15 +35,6 @@ class CloudServer:
 		self.model_weight_dir = model_weight_dir
 
 
-	def sum_model(self, model):
-		total = 0
-		with torch.no_grad():
-			for name, param in model.named_parameters():
-				total += torch.sum(param.data)
-
-		return total
-
-
 	def average_models(self, models):
 		averaged_model = copy.deepcopy(self.model)
 
@@ -57,8 +49,6 @@ class CloudServer:
 
 			for name, param in averaged_model.named_parameters():
 				param.data = (averaged_values[name]/len(models))
-
-		print(self.sum(averaged_model))
 
 		return averaged_model
 
@@ -96,7 +86,7 @@ class CloudServer:
 		print("Generate client nodes")
 		clients = []
 		for i in range(no_clients):
-			client = ClientNode(i)
+			client = ClientNode(self.learning_rate)
 			clients.append(client)
 
 		return clients

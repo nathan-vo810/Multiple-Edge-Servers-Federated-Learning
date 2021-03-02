@@ -47,11 +47,8 @@ class MNISTDataLoader:
 			sorted_images += images.unsqueeze(0)
 			sorted_labels += labels.unsqueeze(0)
 
-		# sorted_images = normalize(sorted_images).unsqueeze(1)
-
 		sorted_images = torch.cat(sorted_images)
 		sorted_labels = torch.cat(sorted_labels)
-
 
 		shards = []
 		for i in range(200):

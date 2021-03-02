@@ -186,6 +186,9 @@ class FederatedHierachicalTrainer:
 					else:
 						worker["model"] = worker["model"][0]
 
+				worker["optim"] = optim.SGD(worker["model"].parameters(), lr=self.lr)
+				worker["criterion"] = nn.CrossEntropyLoss() 
+
 				# Train worker's model
 				for batch_idx, (images, labels) in enumerate(train_data[worker_id]):
 					
@@ -249,9 +252,6 @@ class FederatedHierachicalTrainer:
 				worker["model"] = [model_clone]
 			else:
 				worker["model"].append(model_clone)
-
-			worker["optim"] = optim.SGD(model_clone.parameters(), lr=self.lr)
-			worker["criterion"] = nn.CrossEntropyLoss() 
 
 
 	def average_models(self, models, local):
@@ -331,6 +331,11 @@ class FederatedHierachicalTrainer:
 						worker["model"] = average_model.send(worker["instance"])
 					else:
 						worker["model"] = worker["model"][0]
+
+
+				worker["optim"] = optim.SGD(worker["model"].parameters(), lr=self.lr)
+				worker["criterion"] = nn.CrossEntropyLoss() 
+
 
 				for batch_idx, (images, labels) in enumerate(train_data[worker_id]):
 						
