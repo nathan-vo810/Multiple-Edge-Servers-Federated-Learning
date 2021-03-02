@@ -14,6 +14,7 @@ class ClientNode:
 		self.model = {"model": None, "optim": None, "criterion": None, "loss": None}
 		self.data = []
 		self.location = self.generate_location()
+		self.learning_rate = learning_rate
 
 
 	def generate_location(self):
