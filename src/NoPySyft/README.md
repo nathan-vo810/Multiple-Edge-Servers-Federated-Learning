@@ -11,16 +11,6 @@ This folder contains the source code for Multiple Edge Servers Assignment for Lo
 ## Configurations
 To change the configurations of the training process, go to file ```main.py```
 
-NUM_EDGE_SERVERS = 10
-NUM_CLIENTS = 100
-
-EDGE_UPDATE_AFTER_EVERY = 2
-GLOBAL_UPDATE_AFTER_EVERY = 4
-
-NUM_EPOCHS = 20
-BATCH_SIZE = 10
-LEARNING_RATE = 1e-3
-
 Available configurations:
 1. Number of edge servers: NUM_EDGE_SERVERS (default = 10)
 2. Number of clients: NUM_CLIENTS (default = 100)
