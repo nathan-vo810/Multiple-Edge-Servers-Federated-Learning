@@ -61,7 +61,7 @@ class ClientNode:
 			else:
 				self.model["model"] = self.model["model"][0]
 
-		self.model["optim"] = optim.SGD(model.parameters(), lr=self.learning_rate)
+		self.model["optim"] = optim.SGD(self.model["model"].parameters(), lr=self.learning_rate)
 		self.model["criterion"] = nn.CrossEntropyLoss() 
 
 		for batch_idx, (images, labels) in enumerate(self.data):
