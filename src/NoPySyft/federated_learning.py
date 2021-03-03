@@ -3,6 +3,8 @@ import torch
 import copy
 from tqdm import tqdm
 
+from torch import nn
+
 from mnist_model import CNNModel
 from client_node import ClientNode
 from data_loader import MNISTDataLoader
@@ -66,6 +68,7 @@ class Trainer:
 
 		print("Start training...")
 		for epoch in range(self.epochs):
+			print(f"Epoch {epoch+1}/{len(self.epochs)}")
 			# Send model to all clients
 			self.send_model_to_clients()
 
