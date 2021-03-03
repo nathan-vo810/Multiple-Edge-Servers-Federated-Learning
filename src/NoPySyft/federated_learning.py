@@ -16,6 +16,7 @@ class Trainer:
 	def __init__(self, no_clients, learning_rate, batch_size, epochs, no_local_epochs):
 		self.model = CNNModel().to(device)
 		self.learning_rate = learning_rate
+		self.batch_size = batch_size
 		self.epochs = epochs
 		self.data_loader = MNISTDataLoader(batch_size)
 		self.clients = self.generate_clients(no_clients)
