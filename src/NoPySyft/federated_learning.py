@@ -13,7 +13,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
 
 class Trainer:
-	def __init__(self, no_clients, learning_rate, batch_size, epochs, no_local_epochs):
+	def __init__(self, no_clients, learning_rate, batch_size, epochs, no_local_epochs, model_weight_dir):
 		self.model = CNNModel().to(device)
 		self.learning_rate = learning_rate
 		self.batch_size = batch_size
@@ -21,6 +21,7 @@ class Trainer:
 		self.data_loader = MNISTDataLoader(batch_size)
 		self.clients = self.generate_clients(no_clients)
 		self.no_local_epochs = no_local_epochs
+		self.model_weight_dir = model_weight_dir
 
 
 	def generate_clients(self, no_clients):
