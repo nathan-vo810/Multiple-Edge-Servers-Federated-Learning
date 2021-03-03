@@ -68,7 +68,7 @@ class Trainer:
 
 		print("Start training...")
 		for epoch in range(self.epochs):
-			print(f"Epoch {epoch+1}/{len(self.epochs)}")
+			print(f"Epoch {epoch+1}/{self.epochs}")
 			# Send model to all clients
 			self.send_model_to_clients()
 
