@@ -1,14 +1,14 @@
-# Multiple Edge Servers Assignment for Local Device in Hierarchical Federated Learning
+## Multiple Edge Servers Assignment for Local Device in Hierarchical Federated Learning
 
-This folder contains the source code for Multiple Edge Servers Assignment for Local Device in Hierarchical Federated Learning using PySyft framework
+This folder contains the source code for Multiple Edge Servers Assignment for Local Device in Hierarchical Federated Learning
 
-## Requirements
+### Requirements
 * PyTorch
 * NumPy
 * tqdm
 
 
-## Configurations
+### Configurations
 To change the configurations of the training process, go to file ```main.py```
 
 Available configurations:
@@ -21,6 +21,6 @@ Available configurations:
 7. Learning rate: LEARNING_RATE (default = 1e-3)
 
 
-## Running The Code
+### Running The Code
 To run the code, go to terminal and type 
 * For training: ```python3 main.py``` 
