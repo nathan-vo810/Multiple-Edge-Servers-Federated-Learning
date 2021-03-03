@@ -166,6 +166,38 @@ class CloudServer:
 		return assignment
 
 
+	def k_nearest_edge_servers_assignment(self, k):
+		distance_matrix = self.calculate_distance_matrix()
+
+		assignment = np.zeros((len(self.clients), len(self.edge_servers)))
+
+		for client_id in range(len(self.clients)):
+			server_indices = np.argpartition(distance_matrix[client_id], k)
+			for server_id in server_indices:
+				assignment[client_id][server_id] = 1
+				self.edge_servers[server_id].add_client(client_id)
+
+		return assignment
+
+
+	def k_nearest_edge_servers_assignment_fixed_size(self, k):
+		distance_matrix = self.calculate_distance_matrix()
+
+		assignment = self.shortest_distance_clients_servers_assign()
+
+		for client_id in range(len(self.clients)):
+			server_indices = np.argpartition(distance_matrix[client_id], k)
+			for server_id in server_indices:
+				if assignment[client_id][server_id] == 0:
+					assignment[client_id][server_id] = 1
+					self.edge_servers[server_id].add_client(client_id)
+
+				if np.sum(assignment[client_id]) == k:
+					break
+
+		return assignment
+
+
 	def multiple_edges_assignment(self, edge_servers_per_client, alpha, no_local_epochs):
 		print("---- Assignment Phase Model Training ----")
 
@@ -194,7 +226,7 @@ class CloudServer:
 		print("-- Assign workers to edge server")
 		assignment = np.zeros((len(self.clients), len(self.edge_servers)))
 
-		for client_id, client in enumerate(self.clients):
+		for client_id in range(len(self.clients)):
 			cost = alpha*distance_matrix[i][:] + (1-alpha)*np.sum([assignment[i][s]*(1-assignment[j][s])*weight_difference_matrix[i][j] for j in range(i) for s in range(len(self.edge_servers))])
 			server_indices = np.argpartition(cost, edge_servers_per_client)
 			for server_id in server_indices[:edge_servers_per_client]:
@@ -224,7 +256,8 @@ class CloudServer:
 		# Assigning clients to edge server
 		# self.random_clients_servers_assign()
 		# self.shortest_distance_clients_servers_assign()
-		self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.2, no_local_epochs=4)
+		# self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.2, no_local_epochs=4)
+		self.k_nearest_edge_servers_assignment_fixed_size(k = 3)
 
 		# Train
 		print("Start training...")
