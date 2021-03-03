@@ -23,4 +23,7 @@ Available configurations:
 
 ### Running The Code
 To run the code, go to terminal and type 
-* For training: ```python3 main.py``` 
+* For training: ```python3 main.py --mode=MODE``` 
+Currently supporting modes:
+    -  federated-non-iid (default)
+    -  hierarchical-non-iid
