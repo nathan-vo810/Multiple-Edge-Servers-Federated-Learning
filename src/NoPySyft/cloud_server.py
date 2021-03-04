@@ -253,7 +253,7 @@ class CloudServer:
 	def train(self):
 
 		# Load and distribute data to clients
-		train_data = self.data_loader.prepare_federated_pathological_non_iid(len(self.clients), train=True)
+		train_data = self.data_loader.prepare_federated_pathological_non_iid(len(self.clients))
 
 		print("Distributing data...")
 		for client_id, client_data in tqdm(train_data.items()):
