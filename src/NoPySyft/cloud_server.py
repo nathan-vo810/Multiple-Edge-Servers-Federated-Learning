@@ -197,6 +197,16 @@ class CloudServer:
 
 		return assignment
 
+	def random_multiple_edges_assignment(self, edge_servers_per_client):
+		assignment = np.zeros((len(self.clients), len(self.edge_servers)))
+		for client_id in range(len(self.clients)):
+			random_servers = random.sample(range(len(self.edge_servers)), 3)
+			for server_id in random_servers:
+				self.edge_servers[server_id].add_client(client_id)
+				assignment[client_id][server_id] = 1
+
+		return assignment
+
 
 	def multiple_edges_assignment(self, edge_servers_per_client, alpha, no_local_epochs):
 		print("---- Assignment Phase Model Training ----")
@@ -257,7 +267,7 @@ class CloudServer:
 		# self.random_clients_servers_assign()
 		# self.shortest_distance_clients_servers_assign()
 		# self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.2, no_local_epochs=4)
-		self.k_nearest_edge_servers_assignment_fixed_size(k = 3)
+		# self.k_nearest_edge_servers_assignment_fixed_size(k = 3)
 
 		# Train
 		print("Start training...")
