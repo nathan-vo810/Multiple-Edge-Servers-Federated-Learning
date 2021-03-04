@@ -35,10 +35,10 @@ class Trainer:
 
 	def send_model_to_clients(self):
 		for client in self.clients:
-			client.model["model"] = self.model
+			client.model["model"] = copy.deepcopy(self.model)
 
 
-	def average_model(self, models):
+	def average_models(self, models):
 		averaged_model = copy.deepcopy(self.model)
 
 		with torch.no_grad():
@@ -59,7 +59,8 @@ class Trainer:
 	def train(self):
 
 		# Load and distribute data to clients
-		train_data = self.data_loader.prepare_federated_pathological_non_iid(len(self.clients), train=True)
+		train_data = self.data_loader.prepare_federated_pathological_non_iid(len(self.clients))
+		train_data = self.data_loader.prepare_iid_data(len(self.clients))
 
 		print("Distributing data...")
 		for client_id, client_data in tqdm(train_data.items()):
@@ -77,12 +78,12 @@ class Trainer:
 			# Update local model for several epochs
 			print("Local updating on clients")
 			for i in tqdm(range(len(self.clients))):
-				for local_epoch in range(self.no_local_epochs):
+				for epoch in range(self.no_local_epochs):	
 					self.clients[i].train(device)
 
 			# Get back and average the local models
 			client_models = [client.model["model"] for client in self.clients]
-			self.model = self.average_model(client_models)
+			self.model = self.average_models(client_models)
 
 			# Validate new model
 			accuracy = self.validate(load_weight=False)

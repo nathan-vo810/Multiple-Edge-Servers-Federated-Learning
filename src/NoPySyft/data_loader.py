@@ -21,17 +21,28 @@ class MNISTDataLoader:
 		return data
 
 
-	def prepare_federated_pathological_non_iid(self, no_clients, train=True):
+	def normalize(self, x, mean=0.1307, std=0.3081):
+		return (x-mean)/std
+
+
+	def prepare_iid_data(self, no_clients):
+		clients_data = {}
+		data = self.train_data
+
+		images = self.normalize(data.data).unsqueeze(1)
+		labels = data.targets
+
+		return self.distribute_in_shards(images, labels, no_clients)
+		
+
+	def prepare_federated_pathological_non_iid(self, no_clients):
 		'''
 		Sort the data by digit label
 		Divide it into 200 shards of size 300
 		Assign each of n clients 200/n shards
 		'''
 
-		def normalize(x, mean=0.1307, std=0.3081):
-			return (x-mean)/std
-
-		data = self.train_data if train == True else self.test_data
+		data = self.train_data
 		
 		sorted_images = []
 		sorted_labels = []
@@ -42,7 +53,7 @@ class MNISTDataLoader:
 			images = data.data[indices == 1]
 			labels = data.targets[indices == 1]
 
-			images = normalize(images).unsqueeze(1)
+			images = self.normalize(images).unsqueeze(1)
 
 			sorted_images += images.unsqueeze(0)
 			sorted_labels += labels.unsqueeze(0)
@@ -50,15 +61,19 @@ class MNISTDataLoader:
 		sorted_images = torch.cat(sorted_images)
 		sorted_labels = torch.cat(sorted_labels)
 
+		return self.distribute_in_shards(sorted_images, sorted_labels, no_clients)
+
+
+	def distribute_in_shards(self, images, labels, no_clients):
 		shards = []
 		for i in range(200):
 			start = i*300
-			end = start+300
+			end = start + 300
 
-			images = sorted_images[start:end]
-			labels = sorted_labels[start:end]
+			shard_images = images[start:end]
+			shard_labels = labels[start:end]
 
-			shard = TensorDataset(images, labels)
+			shard = TensorDataset(shard_images, shard_labels)
 			shards.append(shard)
 
 		clients_data = {}
