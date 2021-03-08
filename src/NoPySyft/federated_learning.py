@@ -1,6 +1,7 @@
 import os
 import torch
 import copy
+from numpy import save
 from tqdm import tqdm
 
 from torch import nn
@@ -91,6 +92,8 @@ class Trainer:
 			if accuracy > best_acc:
 				best_acc = accuracy
 				self.save_model()
+
+		save("accuracy_logs.npy", accuracy_logs)
 
 
 	def validate(self, load_weight=False):

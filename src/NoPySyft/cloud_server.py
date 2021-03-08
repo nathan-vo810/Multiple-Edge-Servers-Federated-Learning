@@ -3,6 +3,7 @@ import torch
 import copy
 import numpy as np
 from tqdm import tqdm
+import random
 
 from torch import nn
 
@@ -264,10 +265,14 @@ class CloudServer:
 		is_updated = True
 
 		# Assigning clients to edge server
-		# self.random_clients_servers_assign()
-		# self.shortest_distance_clients_servers_assign()
-		# self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.2, no_local_epochs=4)
-		# self.k_nearest_edge_servers_assignment_fixed_size(k = 3)
+		# assignment = self.random_clients_servers_assign()
+		# assignment = self.shortest_distance_clients_servers_assign()
+		assignment = self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.0, no_local_epochs=4)
+
+		# assignment = self.random_multiple_edges_assignment(edge_servers_per_client=3)
+		# assignment = self.k_nearest_edge_servers_assignment_fixed_size(k = 3)
+
+		np.save("assignment.npy", assignment)
 
 		# Train
 		print("Start training...")
@@ -320,7 +325,8 @@ class CloudServer:
 				
 				for client in self.clients:
 					client.clear_model()
-				
+		
+		np.save("accuracy_logs.npy", accuracy_logs)		
 		print("Finish training!")
 
 
