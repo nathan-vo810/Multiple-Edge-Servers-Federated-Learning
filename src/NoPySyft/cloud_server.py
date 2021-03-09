@@ -209,6 +209,13 @@ class CloudServer:
 		return assignment
 
 
+	def calculate_assignment_cost(self, assignment, distance_matrix, weight_difference_matrix, alpha):
+		cost = 0
+		for client_cost in range(len(self.clients)):
+			client_cost = alpha*distance_matrix[client_id][:] + (1-alpha)*np.sum([assignment[client_id][s]*(1-assignment[j][s])*weight_difference_matrix[client_id][j] for j in range(client_id) for s in range(len(self.edge_servers))])
+			cost+= client_cost
+		return cost
+
 	def multiple_edges_assignment(self, edge_servers_per_client, alpha, no_local_epochs):
 		print("---- Assignment Phase Model Training ----")
 
@@ -235,10 +242,10 @@ class CloudServer:
 
 		# Start the assignment
 		print("-- Assign workers to edge server")
-		assignment = np.zeros((len(self.clients), len(self.edge_servers)))
+		assignment = self.random_multiple_edges_assignment(edge_servers_per_client)
 
 		for client_id in range(len(self.clients)):
-			cost = alpha*distance_matrix[i][:] + (1-alpha)*np.sum([assignment[i][s]*(1-assignment[j][s])*weight_difference_matrix[i][j] for j in range(i) for s in range(len(self.edge_servers))])
+			cost = alpha*distance_matrix[client_id][:] + (1-alpha)*np.sum([assignment[client_id][s]*(1-assignment[j][s])*weight_difference_matrix[client_id][j] for j in range(client_id) for s in range(len(self.edge_servers))])
 			server_indices = np.argpartition(cost, edge_servers_per_client)
 			for server_id in server_indices[:edge_servers_per_client]:
 				assignment[client_id][server_id] = 1
@@ -267,7 +274,7 @@ class CloudServer:
 		# Assigning clients to edge server
 		# assignment = self.random_clients_servers_assign()
 		# assignment = self.shortest_distance_clients_servers_assign()
-		assignment = self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.0, no_local_epochs=4)
+		assignment = self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.0, no_local_epochs=1)
 
 		# assignment = self.random_multiple_edges_assignment(edge_servers_per_client=3)
 		# assignment = self.k_nearest_edge_servers_assignment_fixed_size(k = 3)
