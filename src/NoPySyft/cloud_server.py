@@ -216,6 +216,7 @@ class CloudServer:
 			cost+= client_cost
 		return cost
 
+
 	def multiple_edges_assignment(self, edge_servers_per_client, alpha, no_local_epochs):
 		print("---- Assignment Phase Model Training ----")
 
@@ -240,9 +241,14 @@ class CloudServer:
 		print("-- Calculate weight difference matrix")
 		weight_difference_matrix = self.calculate_weight_difference_matrix()
 
+		# Reset the assignment
+		for edge_server in self.edge_servers:
+			edge_server.connected_clients = []
+
+		assignment = np.zeros((len(self.clients), len(self.edge_servers)))
+
 		# Start the assignment
 		print("-- Assign workers to edge server")
-		assignment = self.random_multiple_edges_assignment(edge_servers_per_client)
 
 		for client_id in range(len(self.clients)):
 			cost = alpha*distance_matrix[client_id][:] + (1-alpha)*np.sum([assignment[client_id][s]*(1-assignment[j][s])*weight_difference_matrix[client_id][j] for j in range(client_id) for s in range(len(self.edge_servers))])
