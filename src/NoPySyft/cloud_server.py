@@ -109,7 +109,7 @@ class CloudServer:
 		difference = 0
 		with torch.no_grad():
 			for param_A, param_B in zip(model_A.parameters(), model_B.parameters()):
-				difference += (param_A.data - param_B.data)**2
+				difference += ((param_A.data - param_B.data)**2).sum()
 
 			difference = torch.sqrt(difference)
 
