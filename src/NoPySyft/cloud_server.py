@@ -106,16 +106,16 @@ class CloudServer:
 
 
 	def weight_difference(self, model_A, model_B):
-		model_A, model_B = [], []
+		model_A_vector, model_B_vector = [], []
 		with torch.no_grad():
 			for param_A, param_B in zip(model_A.parameters(), model_B.parameters()):
-				model_A.append(torch.flatten(param_A.data))
-				model_B.append(torch.flatten(param_B.data))
+				model_A_vector.append(torch.flatten(param_A.data))
+				model_B_vector.append(torch.flatten(param_B.data))
 
-			model_A = torch.cat(model_A)
-			model_B = torch.cat(model_B)
+			model_A_vector = torch.cat(model_A_vector)
+			model_B_vector = torch.cat(model_B_vector)
 
-			difference = torch.norm(model_A - model_B)
+			difference = torch.norm(model_A_vector - model_B_vector)
 
 		return difference
 
