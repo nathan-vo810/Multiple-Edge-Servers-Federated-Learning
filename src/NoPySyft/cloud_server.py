@@ -144,12 +144,10 @@ class CloudServer:
 
 		assignment = np.zeros((len(self.clients), len(self.edge_servers)), dtype=np.int8)
 
-		for server_id in range(len(self.edge_servers)):
-			while assignment.sum(axis=0)[server_id] < clients_per_server:
-				client_id = random.randint(0, len(self.clients)-1)
-				if np.sum(assignment[client_id]) == 0:
-					assignment[client_id][server_id] = 1
-					self.edge_servers[server_id].add_client(client_id)
+		for client_id in range(len(self.clients)):
+			random_server_id = random.randint(0, len(self.edge_servers)-1)
+			assignment[client_id][random_server_id] = 1
+			self.edge_servers[random_server_id].add_client(client_id)
 
 		return assignment
 
