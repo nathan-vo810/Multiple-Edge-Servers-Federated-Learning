@@ -1,6 +1,5 @@
 import random
 import numpy as np
-import copy
 import torch
 
 from mnist_model import CNNModel
@@ -17,6 +16,13 @@ class ClientNode:
 		self.learning_rate = learning_rate
 
 
+	def copy_model(self, source_model):
+		model_copy = type(source_model)()
+		model_copy.load_state_dict(source_model.state_dict())
+
+		return model_copy
+
+
 	def generate_location(self):
 		location_ranges = [0,1,2,3,4]
 		distributions = [0.1, 0.15, 0.2, 0.25, 0.3]
@@ -31,7 +37,7 @@ class ClientNode:
 
 
 	def average_models(self):
-		averaged_model = copy.deepcopy(self.model["model"][0])
+		averaged_model = self.copy_model(self.model["model"][0])
 
 		models = self.model["model"]
 

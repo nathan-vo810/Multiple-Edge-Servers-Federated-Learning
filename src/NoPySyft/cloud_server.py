@@ -1,6 +1,5 @@
 import os
 import torch
-import copy
 import numpy as np
 from tqdm import tqdm
 import random
@@ -36,8 +35,14 @@ class CloudServer:
 		self.model_weight_dir = model_weight_dir
 
 
+	def copy_model(self, source_model):
+		model_copy = type(source_model)()
+		model_copy.load_state_dict(source_model.state_dict())
+
+		return model_copy
+
 	def average_models(self, models):
-		averaged_model = copy.deepcopy(self.model)
+		averaged_model = self.copy_model(self.model)
 
 		with torch.no_grad():
 			averaged_values = {}
@@ -57,12 +62,12 @@ class CloudServer:
 	def send_model_to_edge_servers(self):
 		print("Send model to edge servers")
 		for edge_server in self.edge_servers:
-			edge_server.model = copy.deepcopy(self.model)
+			edge_server.model = self.copy_model(self.model).to(device)
 
 
 	def send_model_to_clients(self):
 		for edge_server in self.edge_servers:
-			model = copy.deepcopy(edge_server.model)
+			model = self.copy_model(edge_server.model).to(device)
 
 			for client_id in edge_server.connected_clients:
 				client = self.clients[client_id]
