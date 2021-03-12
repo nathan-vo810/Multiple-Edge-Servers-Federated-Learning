@@ -123,7 +123,7 @@ class CloudServer:
 	def calculate_weight_difference_matrix(self):
 		difference_matrix = np.zeros((len(self.clients), len(self.clients)))
 
-		for i in tqdm(range(len(self.clients))):
+		for i in range(len(self.clients)):
 			client_A = self.clients[i]
 			model_A = client_A.model["model"]
 			
@@ -231,11 +231,8 @@ class CloudServer:
 		self.send_model_to_clients()
 
 		# Train the local models for a few epochs
-		for epoch in range(no_local_epochs):
-			print(f"Epoch {epoch+1}/{no_local_epochs}")
-			# Train each worker with its own local data
-			for i, client in tqdm(enumerate(self.clients)):
-				client.train(device)
+		for i, client in tqdm(enumerate(self.clients)):
+			client.train(device, no_local_epochs)
 
 		# Calculate the distances between workers and edge servers
 		print("-- Calculate distance matrix")
@@ -244,6 +241,7 @@ class CloudServer:
 		# Calculate the weight differences between workers
 		print("-- Calculate weight difference matrix")
 		weight_difference_matrix = self.calculate_weight_difference_matrix()
+		np.save("weight_diff.npy", weight_difference_matrix)
 
 		# Reset the assignment
 		for edge_server in self.edge_servers:

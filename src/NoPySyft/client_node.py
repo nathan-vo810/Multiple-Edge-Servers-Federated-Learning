@@ -55,7 +55,7 @@ class ClientNode:
 		self.model["model"] = None
 
 
-	def train(self, device):
+	def train(self, device, num_epochs=1):
 		if isinstance(self.model["model"], list):
 			if len(self.model["model"]) > 1:
 				self.model["model"] = self.average_models()
@@ -65,23 +65,22 @@ class ClientNode:
 		self.model["optim"] = optim.SGD(self.model["model"].parameters(), lr=self.learning_rate)
 		self.model["criterion"] = nn.CrossEntropyLoss() 
 	
-		
-		for batch_idx, (images, labels) in enumerate(self.data):
-			images, labels = images.to(device), labels.to(device)
+		for epoch in range(num_epochs):
+			for batch_idx, (images, labels) in enumerate(self.data):
+				images, labels = images.to(device), labels.to(device)
 
-			if (batch_idx+1)%100==0:
-				print(f"Processed {batch_idx+1}/{len(self.data)} batches")
+				if (batch_idx+1)%100==0:
+					print(f"Processed {batch_idx+1}/{len(self.data)} batches")
 
-			self.model["optim"].zero_grad()	
-			output = self.model["model"].forward(images)
-			loss = self.model["criterion"](output, labels)
-			loss.backward()
-			self.model["optim"].step()
+				self.model["optim"].zero_grad()	
+				output = self.model["model"].forward(images)
+				loss = self.model["criterion"](output, labels)
+				loss.backward()
+				self.model["optim"].step()
 
-			# self.sum_model()
 		
 	def sum_model(self):
 		total = 0
 		for name, param in self.model["model"].named_parameters():
 			total += torch.sum(param.data)
-		print(total)
+		return total
