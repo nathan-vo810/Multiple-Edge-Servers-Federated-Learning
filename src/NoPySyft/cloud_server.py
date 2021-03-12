@@ -42,7 +42,7 @@ class CloudServer:
 		return model_copy
 
 	def average_models(self, models):
-		averaged_model = self.copy_model(self.model)
+		averaged_model = self.copy_model(self.model).to(device)
 
 		with torch.no_grad():
 			averaged_values = {}
@@ -67,11 +67,11 @@ class CloudServer:
 
 	def send_model_to_clients(self):
 		for edge_server in self.edge_servers:
-			model = self.copy_model(edge_server.model).to(device)
-
 			for client_id in edge_server.connected_clients:
 				client = self.clients[client_id]
-
+				
+				model = self.copy_model(edge_server.model).to(device)
+				
 				if client.model["model"] == None:
 					client.model["model"] = [model]
 				else:
@@ -82,7 +82,7 @@ class CloudServer:
 		print("Generate edge server nodes")
 		edge_servers = []
 		for i in range(no_edge_servers):
-			edge_server = EdgeServerNode(self.model)
+			edge_server = EdgeServerNode()
 			edge_servers.append(edge_server)
 
 		return edge_servers
@@ -287,7 +287,7 @@ class CloudServer:
 		# Assigning clients to edge server
 		# assignment = self.random_clients_servers_assign()
 		# assignment = self.shortest_distance_clients_servers_assign()
-		assignment = self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.0, no_local_epochs=1)
+		assignment = self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.0, no_local_epochs=5)
 
 		# assignment = self.random_multiple_edges_assignment(edge_servers_per_client=3)
 		# assignment = self.k_nearest_edge_servers_assignment_fixed_size(k = 3)

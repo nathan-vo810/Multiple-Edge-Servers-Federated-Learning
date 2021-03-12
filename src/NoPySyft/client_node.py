@@ -1,8 +1,6 @@
 import random
 import numpy as np
 import torch
-
-from mnist_model import CNNModel
 from torch import nn, optim
 
 random.seed(1)
@@ -36,8 +34,8 @@ class ClientNode:
 		return location
 
 
-	def average_models(self):
-		averaged_model = self.copy_model(self.model["model"][0])
+	def average_models(self, device):
+		averaged_model = self.copy_model(self.model["model"][0]).to(device)
 
 		models = self.model["model"]
 
@@ -64,7 +62,7 @@ class ClientNode:
 	def train(self, device, num_epochs=1):
 		if isinstance(self.model["model"], list):
 			if len(self.model["model"]) > 1:
-				self.model["model"] = self.average_models()
+				self.model["model"] = self.average_models(device)
 			else:
 				self.model["model"] = self.model["model"][0]
 

@@ -5,7 +5,7 @@ import random
 random.seed(1)
 
 class EdgeServerNode:
-	def __init__(self, model):
+	def __init__(self):
 		self.model = None
 		self.connected_clients = []
 		self.location = np.array((random.random(), random.random()))
