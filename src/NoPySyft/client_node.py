@@ -6,6 +6,8 @@ from torch import nn, optim
 random.seed(1)
 np.random.seed(1)
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 class ClientNode:
 	def __init__(self, learning_rate):
 		self.model = {"model": None, "optim": None, "criterion": None, "loss": None}
@@ -35,21 +37,16 @@ class ClientNode:
 
 
 	def average_models(self, device):
-		averaged_model = self.copy_model(self.model["model"][0]).to(device)
-
 		models = self.model["model"]
 
+		averaged_model = type(models[0])().to(device)
+
 		with torch.no_grad():
-			averaged_values = {}
-			for name, param in averaged_model.named_parameters():
-				averaged_values[name] = nn.Parameter(torch.zeros_like(param.data))
-
-			for model in models:
-				for name, param in model.named_parameters():	
-					averaged_values[name] += param.data
-
-			for name, param in averaged_model.named_parameters():
-				param.data = (averaged_values[name]/len(models))
+			averaged_dict = averaged_model.state_dict()
+			for k in averaged_dict.keys():
+				averaged_dict[k] = torch.stack([models[i].state_dict()[k].float() for i in range(len(models))], 0).mean(0)
+			
+			averaged_model.load_state_dict(averaged_dict)
 
 		return averaged_model
 
@@ -59,7 +56,7 @@ class ClientNode:
 		self.model["model"] = None
 
 
-	def train(self, device, num_epochs=1):
+	def train(self, num_epochs=1):
 		if isinstance(self.model["model"], list):
 			if len(self.model["model"]) > 1:
 				self.model["model"] = self.average_models(device)

@@ -10,6 +10,7 @@ from mnist_model import CNNModel
 from edge_server_node import EdgeServerNode
 from client_node import ClientNode
 from data_loader import MNISTDataLoader
+from client_assignment import ClientAssignment
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
@@ -27,8 +28,6 @@ class CloudServer:
 
 		self.data_loader = MNISTDataLoader(batch_size)
 
-		self.assignment = None
-
 		self.edge_update = edge_update
 		self.global_update = global_update
 
@@ -41,31 +40,31 @@ class CloudServer:
 
 		return model_copy
 
+
 	def average_models(self, models):
-		averaged_model = self.copy_model(self.model).to(device)
+		averaged_model = type(self.model)().to(device)
 
 		with torch.no_grad():
-			averaged_values = {}
-			for name, param in averaged_model.named_parameters():
-				averaged_values[name] = nn.Parameter(torch.zeros_like(param.data))
-
-			for model in models:
-				for name, param in model.named_parameters():	
-					averaged_values[name] += param.data
-
-			for name, param in averaged_model.named_parameters():
-				param.data = (averaged_values[name]/len(models))
+			averaged_dict = averaged_model.state_dict()
+			for k in averaged_dict.keys():
+				averaged_dict[k] = torch.stack([models[i].state_dict()[k].float() for i in range(len(models))], 0).mean(0)
+			
+			averaged_model.load_state_dict(averaged_dict)
 
 		return averaged_model
 
 
-	def send_model_to_edge_servers(self):
-		print("Send model to edge servers")
+	def send_cloud_model_to_edge_servers(self):
 		for edge_server in self.edge_servers:
 			edge_server.model = self.copy_model(self.model).to(device)
 
 
-	def send_model_to_clients(self):
+	def send_cloud_model_to_clients(self):
+		for client in self.clients:
+			client.model["model"] = [self.copy_model(self.model).to(device)]
+
+
+	def send_edge_models_to_clients(self):
 		for edge_server in self.edge_servers:
 			for client_id in edge_server.connected_clients:
 				client = self.clients[client_id]
@@ -98,126 +97,6 @@ class CloudServer:
 		return clients
 
 
-	def calculate_distance_matrix(self):	
-		edge_server_locations = [edge_server.location for edge_server in self.edge_servers]
-
-		distance_matrix = []
-		
-		for client in self.clients:
-			distances = [np.linalg.norm(client.location - edge_server_location) for edge_server_location in edge_server_locations]
-			distance_matrix.append(distances)
-		
-		return np.array(distance_matrix)
-
-
-	def weight_difference(self, model_A, model_B):
-		model_A_vector, model_B_vector = [], []
-		with torch.no_grad():
-			for param_A, param_B in zip(model_A.parameters(), model_B.parameters()):
-				model_A_vector.append(torch.flatten(param_A.data))
-				model_B_vector.append(torch.flatten(param_B.data))
-
-			model_A_vector = torch.cat(model_A_vector)
-			model_B_vector = torch.cat(model_B_vector)
-
-			difference = torch.norm(model_A_vector - model_B_vector)
-
-		return difference
-
-
-	def calculate_weight_difference_matrix(self):
-		difference_matrix = np.zeros((len(self.clients), len(self.clients)))
-
-		for i in range(len(self.clients)):
-			client_A = self.clients[i]
-			model_A = client_A.model["model"]
-			
-			for j in range(i+1, len(self.clients)):
-				
-				client_B = self.clients[j]
-				model_B = client_B.model["model"]
-
-				difference = self.weight_difference(model_A, model_B)
-				difference_matrix[i][j] = difference
-				difference_matrix[j][i] = difference
-
-		return difference_matrix
-
-
-	def random_clients_servers_assign(self):
-		clients_per_server = len(self.clients)/len(self.edge_servers)
-
-		assignment = np.zeros((len(self.clients), len(self.edge_servers)), dtype=np.int8)
-
-		for client_id in range(len(self.clients)):
-			random_server_id = random.randint(0, len(self.edge_servers)-1)
-			assignment[client_id][random_server_id] = 1
-			self.edge_servers[random_server_id].add_client(client_id)
-
-		return assignment
-
-
-	def shortest_distance_clients_servers_assign(self):
-		distance_matrix = self.calculate_distance_matrix()
-		distance_matrix = np.transpose(distance_matrix)
-
-		clients_per_server = len(self.clients) / len(self.edge_servers)
-		assignment = np.zeros((len(self.clients), len(self.edge_servers)), dtype=np.int8)
-		
-		for server_id in range(len(self.edge_servers)):
-			while assignment.sum(axis=0)[server_id] < clients_per_server:
-				nearest_client_id = np.argmin(distance_matrix[server_id])
-				if np.sum(assignment[nearest_client_id]) == 0:
-					assignment[nearest_client_id][server_id] = 1
-					self.edge_servers[server_id].add_client(nearest_client_id)
-		
-				distance_matrix[server_id][nearest_client_id] = 100
-
-		return assignment
-
-
-	def k_nearest_edge_servers_assignment(self, k):
-		distance_matrix = self.calculate_distance_matrix()
-
-		assignment = np.zeros((len(self.clients), len(self.edge_servers)))
-
-		for client_id in range(len(self.clients)):
-			server_indices = np.argpartition(distance_matrix[client_id], k)
-			for server_id in server_indices:
-				assignment[client_id][server_id] = 1
-				self.edge_servers[server_id].add_client(client_id)
-
-		return assignment
-
-
-	def k_nearest_edge_servers_assignment_fixed_size(self, k):
-		distance_matrix = self.calculate_distance_matrix()
-
-		assignment = self.shortest_distance_clients_servers_assign()
-
-		for client_id in range(len(self.clients)):
-			server_indices = np.argpartition(distance_matrix[client_id], k)
-			for server_id in server_indices:
-				if assignment[client_id][server_id] == 0:
-					assignment[client_id][server_id] = 1
-					self.edge_servers[server_id].add_client(client_id)
-
-				if np.sum(assignment[client_id]) == k:
-					break
-
-		return assignment
-
-	def random_multiple_edges_assignment(self, edge_servers_per_client):
-		assignment = np.zeros((len(self.clients), len(self.edge_servers)))
-		for client_id in range(len(self.clients)):
-			random_servers = random.sample(range(len(self.edge_servers)), 3)
-			for server_id in random_servers:
-				self.edge_servers[server_id].add_client(client_id)
-				assignment[client_id][server_id] = 1
-
-		return assignment
-
-
 	def calculate_assignment_cost(self, assignment, distance_matrix, weight_difference_matrix, alpha):
 		cost = 0
 		for client_cost in range(len(self.clients)):
@@ -226,49 +105,12 @@ class CloudServer:
 		return cost
 
 
-	def multiple_edges_assignment(self, edge_servers_per_client, alpha, no_local_epochs):
-		print("---- Assignment Phase Model Training ----")
-
-		# Send models from edge to nearest workers
-		shortest_distance_assignment = self.shortest_distance_clients_servers_assign()
-
-		print("-- Send edge server models to workers --")
-		self.send_model_to_clients()
-
-		# Train the local models for a few epochs
-		for i, client in tqdm(enumerate(self.clients)):
-			client.train(device, no_local_epochs)
-
-		# Calculate the distances between workers and edge servers
-		print("-- Calculate distance matrix")
-		distance_matrix = self.calculate_distance_matrix()
-
-		# Calculate the weight differences between workers
-		print("-- Calculate weight difference matrix")
-		weight_difference_matrix = self.calculate_weight_difference_matrix()
-		np.save("weight_diff.npy", weight_difference_matrix)
-
-		# Reset the assignment
-		for edge_server in self.edge_servers:
-			edge_server.connected_clients = []
-
-		assignment = np.zeros((len(self.clients), len(self.edge_servers)))
-
-		# Start the assignment
-		print("-- Assign workers to edge server")
-
-		for client_id in range(len(self.clients)):
-			cost = alpha*distance_matrix[client_id][:] + (1-alpha)*np.sum([assignment[client_id][s]*(1-assignment[j][s])*weight_difference_matrix[client_id][j] for j in range(client_id) for s in range(len(self.edge_servers))])
-			server_indices = np.argpartition(cost, edge_servers_per_client)
-			for server_id in server_indices[:edge_servers_per_client]:
-				assignment[client_id][server_id] = 1
-				self.edge_servers[server_id].add_client(client_id)
-
-		# Clear models
-		for client in self.clients:
-			client.model["model"] = None
-
-		return assignment
+	def distribute_data_to_clients(self, train_data):
+		client_ids = list(range(len(self.clients)))
+		for _, data in tqdm(train_data.items()):
+			selected_client = random.choice(client_ids)
+			self.clients[selected_client].data = data
+			client_ids.remove(selected_client)
 
 
 	def train(self):
@@ -276,26 +118,29 @@ class CloudServer:
 		# Load and distribute data to clients
 		train_data = self.data_loader.prepare_federated_pathological_non_iid(len(self.clients))
 
-		print("Distributing data...")
-		for client_id, client_data in tqdm(train_data.items()):
+		print("---- [DISTRIBUTE DATA] Send data to clients ----")
+		for client_id, client_data in train_data.items():
 			self.clients[client_id].data = client_data
 
 		# Send model to edge server
-		self.send_model_to_edge_servers()
-		is_updated = True
+		print("---- [DELIVER MODEL] Send global model to clients ----")
+		self.send_cloud_model_to_clients()
+		edge_updated = False
 
 		# Assigning clients to edge server
-		# assignment = self.random_clients_servers_assign()
-		# assignment = self.shortest_distance_clients_servers_assign()
-		assignment = self.multiple_edges_assignment(edge_servers_per_client=3, alpha=0.0, no_local_epochs=5)
+		# client_assignment = ClientAssignment().random_clients_servers_assign(self.clients, self.edge_servers)
+		# client_assignment = ClientAssignment().shortest_distance_clients_servers_assign(self.clients, self.edge_servers)
+		client_assignment = ClientAssignment().multiple_edges_assignment(self.clients, self.edge_servers, k=3, alpha=0.0, no_local_epochs=5)
+		# client_assignment = ClientAssignment().random_multiple_edges_assignment(self.clients, self.edge_servers, k=3)
+		# client_assignment = ClientAssignment().k_nearest_edge_servers_assignment_fixed_size(self.clients, self.edge_servers, k = 3)
 
-		# assignment = self.random_multiple_edges_assignment(edge_servers_per_client=3)
-		# assignment = self.k_nearest_edge_servers_assignment_fixed_size(k = 3)
-
-		np.save("assignment.npy", assignment)
+		np.save("client_assignment.npy", client_assignment)
 
 		# Train
 		print("Start training...")
+
+		print("---- [DELIVER MODEL] Send global model to clients ----")
+		self.send_cloud_model_to_clients()
 
 		accuracy_logs = []
 		best_acc = 0
@@ -304,20 +149,19 @@ class CloudServer:
 			print(f"Epoch {epoch+1}/{self.num_epochs}")
 
 			# Send the edge servers' models to all the workers
-			if is_updated:
+			if edge_updated:
 				print("---- [DELIVER MODEL] Send edge server models to clients ----")
-				self.send_model_to_clients()
-				is_updated = False 
+				self.send_edge_models_to_clients()
+				edge_updated = False 
 
 			# Train each worker
 			for i, client in tqdm(enumerate(self.clients)):
-				client.train(device)
-
+				client.train()
 		
 			# Average models at edge servers
 			if (epoch+1) % self.edge_update == 0:
 				print("---- [UPDATE MODEL] Send local models to edge servers ----")
-				is_updated = True
+				edge_updated = True
 				for edge_server in self.edge_servers:
 					models = [self.clients[client_id].model["model"] for client_id in edge_server.connected_clients]
 					edge_server.model = self.average_models(models)
@@ -337,16 +181,21 @@ class CloudServer:
 				if accuracy > best_acc:
 					best_acc = accuracy
 					self.save_model()
+
+				np.save("accuracy_logs.npy", accuracy_logs)		
 				
-				# Send the global model to edge servers
-				print("---- [DELIVER MODEL] Send global model to edge servers ----")
-				self.send_model_to_edge_servers()
-				is_updated = True
-				
+				# Clear models
 				for client in self.clients:
 					client.clear_model()
+
+				edge_updated = False
+				for edge_server in self.edge_servers:
+					edge_server.clear_model()
+
+				# Send the global model to edge servers
+				print("---- [DELIVER MODEL] Send global model to clients ----")
+				self.send_cloud_model_to_clients()
 		
-		np.save("accuracy_logs.npy", accuracy_logs)		
 		print("Finish training!")
 
 
@@ -380,7 +229,6 @@ class CloudServer:
 		return accuracy
 
 	def save_model(self):
-		print("Saving model...")
 		if not os.path.exists(self.model_weight_dir):
 			os.makedirs(self.model_weight_dir)
 		torch.save(self.model.state_dict(), self.model_weight_dir + "/weight.pth")

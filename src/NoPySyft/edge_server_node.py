@@ -13,3 +13,8 @@ class EdgeServerNode:
 
 	def add_client(self, client_id):
 		self.connected_clients.append(client_id)
+
+
+	def clear_model(self):
+		del self.model
+		self.model = None
