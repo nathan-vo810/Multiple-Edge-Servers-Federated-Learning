@@ -6,21 +6,22 @@ import random
 
 from torch import nn
 
-from mnist_model import CNNModel
+from mnist_model import CNNModel, NNModel
 from edge_server_node import EdgeServerNode
 from client_node import ClientNode
 from data_loader import MNISTDataLoader
 from client_assignment import ClientAssignment
+from edge_server_assignment import EdgeServerAssignment
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
 
 class CloudServer:
 	def __init__(self, no_edge_servers, no_clients, num_epochs, batch_size, learning_rate, edge_update, global_update, model_weight_dir):
-		self.model = CNNModel().to(device)
+		self.model = NNModel().to(device)
 
 		self.num_epochs = num_epochs
-		self.learning_rate = learning_rate
+		self.learning_rate = float(learning_rate)
 		self.batch_size = batch_size
 		
 		self.edge_servers = self.generate_edge_servers(no_edge_servers)
@@ -42,16 +43,105 @@ class CloudServer:
 
 
 	def average_models(self, models):
-		averaged_model = type(self.model)().to(device)
+		averaged_model = self.copy_model(self.model).to(device)
 
 		with torch.no_grad():
-			averaged_dict = averaged_model.state_dict()
-			for k in averaged_dict.keys():
-				averaged_dict[k] = torch.stack([models[i].state_dict()[k].float() for i in range(len(models))], 0).mean(0)
-			
-			averaged_model.load_state_dict(averaged_dict)
+			averaged_values = {}
+			for name, param in averaged_model.named_parameters():
+				averaged_values[name] = nn.Parameter(torch.zeros_like(param.data))
+
+			for model in models:
+				for name, param in model.named_parameters():	
+					averaged_values[name] += param.data
+
+			for name, param in averaged_model.named_parameters():
+				param.data = (averaged_values[name]/len(models))
 
 		return averaged_model
+
+
+	def create_incidence_matrix(self, adjacency_matrix):
+		num_vertices = adjacency_matrix.shape[0]
+		num_edges = int(np.sum(adjacency_matrix)/2)
+
+		incidence_matrix = np.zeros((num_vertices, num_edges))
+
+		edge_num = 0
+		for i in range(num_vertices):
+			for j in range(i+1, num_vertices):
+				if adjacency_matrix[i][j] == 1:
+					incidence_matrix[i][edge_num] = 1 	# outgoing vertice get 1
+					incidence_matrix[j][edge_num] = -1 	# incoming vertice get -1
+					edge_num += 1
+		
+		return incidence_matrix
+
+
+	def calculate_constant_edge_weights(self, assignment):
+		A = self.create_incidence_matrix(assignment)
+		L = A.dot(np.transpose(A))
+
+		eigenvalues = np.linalg.eig(L)[0]
+		eigenvalues.sort()
+
+		alpha = 2 / (eigenvalues[1] + eigenvalues[-1]) # sum of the largest and the next to smallest
+
+		return alpha
+
+
+	def sub_models(self, model_A, model_B):
+		model_A_weight = model_A.state_dict()
+		model_B_weight = model_B.state_dict()
+
+		weight_difference = type(self.model)().state_dict()
+		for layer in weight_difference.keys():
+			weight_difference[layer] = model_A_weight[layer] - model_B_weight[layer]
+
+		return weight_difference
+
+
+	def sum_diffs(self, diff_A, diff_B):
+		for layer in diff_A.keys():
+			diff_A[layer] += diff_B[layer]
+
+		return diff_A
+
+
+	def sum_dict(self, d):
+		s = 0.0
+		for layer in d.keys():
+			s += torch.sum(d[layer])
+
+		return s
+
+
+	def distributed_edges_average(self, alpha):
+		new_weights = []
+
+		for edge_server in self.edge_servers:
+			total_diff = edge_server.model.state_dict()
+			for layer in total_diff.keys():
+				total_diff[layer] = 0.0
+
+			for server_id in edge_server.neighbor_servers:
+				neighbor_server = self.edge_servers[server_id]
+
+				if len(neighbor_server.connected_clients) > 0:
+					diff = self.sub_models(neighbor_server.model, edge_server.model)
+					total_diff = self.sum_diffs(total_diff, diff)
+			
+			for layer in total_diff.keys():
+				total_diff[layer] *= alpha
+
+			new_weight = edge_server.model.state_dict()
+			for layer in new_weight.keys():
+				new_weight[layer] += total_diff[layer]
+
+			new_weights.append(new_weight)
+
+		for i, edge_server in enumerate(self.edge_servers):
+			if len(edge_server.connected_clients) > 0:
+				edge_server.model.load_state_dict(new_weights[i])
 
 
 	def send_cloud_model_to_edge_servers(self):
@@ -61,20 +151,20 @@ class CloudServer:
 
 	def send_cloud_model_to_clients(self):
 		for client in self.clients:
-			client.model["model"] = [self.copy_model(self.model).to(device)]
+			model = self.copy_model(self.model)
+			client.model["model"] = [model.to(device)]
 
 
 	def send_edge_models_to_clients(self):
 		for edge_server in self.edge_servers:
 			for client_id in edge_server.connected_clients:
-				client = self.clients[client_id]
 				
 				model = self.copy_model(edge_server.model).to(device)
 				
-				if client.model["model"] == None:
-					client.model["model"] = [model]
+				if self.clients[client_id].model["model"] == None:
+					self.clients[client_id].model["model"] = [model]
 				else:
-					client.model["model"].append(model)
+					self.clients[client_id].model["model"].append(model)
 
 
 	def generate_edge_servers(self, no_edge_servers):
@@ -122,17 +212,27 @@ class CloudServer:
 		for client_id, client_data in train_data.items():
 			self.clients[client_id].data = client_data
 
+		print("---- [ASSIGNMENT] Link edge servers ----")
+		edge_assignment = EdgeServerAssignment().random_edge_assignment_degree_k(self.edge_servers, 3)
+		print(edge_assignment)
+		alpha = self.calculate_constant_edge_weights(edge_assignment)
+		exchange = True
+
 		# Send model to edge server
 		print("---- [DELIVER MODEL] Send global model to clients ----")
 		self.send_cloud_model_to_clients()
-		edge_updated = False
+		edge_updated = True
 
 		# Assigning clients to edge server
+		print("---- [ASSIGNMENT] Link clients to edge servers ----")
+		client_assignment = ClientAssignment().load("client_assignment.npy", self.edge_servers)
 		# client_assignment = ClientAssignment().random_clients_servers_assign(self.clients, self.edge_servers)
 		# client_assignment = ClientAssignment().shortest_distance_clients_servers_assign(self.clients, self.edge_servers)
-		client_assignment = ClientAssignment().multiple_edges_assignment(self.clients, self.edge_servers, k=3, alpha=0.0, no_local_epochs=5)
+		# client_assignment = ClientAssignment().multiple_edges_assignment(self.clients, self.edge_servers, k=3, alpha=0.0, no_local_epochs=5)
 		# client_assignment = ClientAssignment().random_multiple_edges_assignment(self.clients, self.edge_servers, k=3)
 		# client_assignment = ClientAssignment().k_nearest_edge_servers_assignment_fixed_size(self.clients, self.edge_servers, k = 3)
+
+		
 
 		np.save("client_assignment.npy", client_assignment)
 
@@ -148,12 +248,6 @@ class CloudServer:
 		for epoch in range(self.num_epochs):
 			print(f"Epoch {epoch+1}/{self.num_epochs}")
 
-			# Send the edge servers' models to all the workers
-			if edge_updated:
-				print("---- [DELIVER MODEL] Send edge server models to clients ----")
-				self.send_edge_models_to_clients()
-				edge_updated = False 
-
 			# Train each worker
 			for i, client in tqdm(enumerate(self.clients)):
 				client.train()
@@ -161,17 +255,26 @@ class CloudServer:
 			# Average models at edge servers
 			if (epoch+1) % self.edge_update == 0:
 				print("---- [UPDATE MODEL] Send local models to edge servers ----")
-				edge_updated = True
 				for edge_server in self.edge_servers:
 					models = [self.clients[client_id].model["model"] for client_id in edge_server.connected_clients]
 					edge_server.model = self.average_models(models)
 
+				# Edge servers exchange weights
+				if exchange == True:
+					print("---- [UPDATE MODEL] Edge servers exchange weights ----")
+					self.distributed_edges_average(alpha)
+
 				for client in self.clients:
 					client.clear_model()
 
+				if (epoch+1)% self.global_update != 0:
+					# Send the edge servers' models to all the workers	
+					print("---- [DELIVER MODEL] Send edge server models to clients ----")
+					self.send_edge_models_to_clients()
+
 			# Average models at cloud servers
 			if (epoch+1) % self.global_update == 0:
-				print("---- [UPDATE MODEL] Send edge servers to cloud server ----")
+				print("---- [UPDATE MODEL] Send edge servers models to cloud server ----")
 				models = [edge_server.model for edge_server in self.edge_servers if len(edge_server.connected_clients) > 0]
 				self.model = self.average_models(models)
 
@@ -188,7 +291,6 @@ class CloudServer:
 				for client in self.clients:
 					client.clear_model()
 
-				edge_updated = False
 				for edge_server in self.edge_servers:
 					edge_server.clear_model()
 
@@ -213,6 +315,7 @@ class CloudServer:
 		
 		with torch.no_grad():
 			for batch_idx, (images, labels) in enumerate(test_data):
+				images = images.view(images.shape[0], -1)
 				images, labels = images.to(device), labels.to(device)
 				output = self.model(images)
 				pred = output.argmax(dim=1)

@@ -35,18 +35,23 @@ class ClientNode:
 
 		return location
 
-
+	
 	def average_models(self, device):
 		models = self.model["model"]
-
-		averaged_model = type(models[0])().to(device)
+		
+		averaged_model = self.copy_model(models[0]).to(device)
 
 		with torch.no_grad():
-			averaged_dict = averaged_model.state_dict()
-			for k in averaged_dict.keys():
-				averaged_dict[k] = torch.stack([models[i].state_dict()[k].float() for i in range(len(models))], 0).mean(0)
-			
-			averaged_model.load_state_dict(averaged_dict)
+			averaged_values = {}
+			for name, param in averaged_model.named_parameters():
+				averaged_values[name] = nn.Parameter(torch.zeros_like(param.data))
+
+			for model in models:
+				for name, param in model.named_parameters():	
+					averaged_values[name] += param.data
+
+			for name, param in averaged_model.named_parameters():
+				param.data = (averaged_values[name]/len(models))
 
 		return averaged_model
 
@@ -54,6 +59,8 @@ class ClientNode:
 	def clear_model(self):
 		del self.model["model"]
 		self.model["model"] = None
+		self.model["optim"] = None
+		self.model["criterion"] = None
 
 
 	def train(self, num_epochs=1):
@@ -63,11 +70,15 @@ class ClientNode:
 			else:
 				self.model["model"] = self.model["model"][0]
 
-		self.model["optim"] = optim.SGD(self.model["model"].parameters(), lr=self.learning_rate)
-		self.model["criterion"] = nn.CrossEntropyLoss() 
+		if self.model["optim"] is None:
+			self.model["optim"] = optim.SGD(self.model["model"].parameters(), lr=self.learning_rate)
+		
+		if self.model["criterion"] is None:
+			self.model["criterion"] = nn.CrossEntropyLoss() 
 	
 		for epoch in range(num_epochs):
 			for batch_idx, (images, labels) in enumerate(self.data):
+				images  = images.view(images.shape[0], -1) 				# For NN model
 				images, labels = images.to(device), labels.to(device)
 
 				if (batch_idx+1)%100==0:

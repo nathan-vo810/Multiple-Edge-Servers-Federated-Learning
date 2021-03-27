@@ -5,6 +5,19 @@ from tqdm import tqdm
 
 class ClientAssignment:
 
+	def load(self, path, edge_servers):
+		assignment = np.load(path)
+		assignment = np.transpose(assignment)
+
+		for server_id in range(assignment.shape[0]):
+			for client_id in range(assignment.shape[1]):
+				if assignment[server_id][client_id] == 1:
+					edge_servers[server_id].add_client(client_id)
+
+		assignment = np.transpose(assignment)
+		return assignment
+
+
 	def random_clients_servers_assign(self, clients, edge_servers):
 		clients_per_server = len(clients)/len(edge_servers)
 
