@@ -9,8 +9,9 @@ np.random.seed(1)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class ClientNode:
-	def __init__(self, learning_rate):
-		self.model = {"model": None, "optim": None, "criterion": None, "loss": None}
+	def __init__(self, client_id, learning_rate):
+		self.client_id = client_id
+		self.model = {"model": None, "optim": None, "criterion": None, "loss": []}
 		self.data = []
 		self.location = self.generate_location()
 		self.learning_rate = learning_rate
@@ -88,6 +89,7 @@ class ClientNode:
 				output = self.model["model"].forward(images)
 				loss = self.model["criterion"](output, labels)
 				loss.backward()
+				self.model["loss"].append(loss.item())
 				self.model["optim"].step()
 
 		

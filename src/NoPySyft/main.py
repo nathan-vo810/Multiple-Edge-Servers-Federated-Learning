@@ -19,6 +19,8 @@ def parse_args():
 	parser.add_argument('--batchsize', dest='batchsize', help='Batch size (default 10)', type=int, default=10)
 	parser.add_argument('--lr', dest='lr', help='Learning rate (default 1e-3)', default=1e-3)
 
+	parser.add_argument('edges-exchange', dest='edges_exchange', help='Enable weight sharing between edge servers', type=int, default=1)
+
 	return parser.parse_args()
 
 def main(args):
@@ -26,7 +28,7 @@ def main(args):
 		trainer = Trainer(args.num_clients, args.lr, args.batchsize, args.epochs, args.global_update, MODEL_WEIGHT_DIR)
 		trainer.train()
 	else:
-		trainer = CloudServer(args.num_edges, args.num_clients, args.epochs, args.batchsize, args.lr, args.edge_update, args.global_update, MODEL_WEIGHT_DIR)
+		trainer = CloudServer(args.num_edges, args.num_clients, args.epochs, args.batchsize, args.lr, args.edge_update, args.global_update, args.edges_exchange, MODEL_WEIGHT_DIR)
 		trainer.train()
 
 if __name__ == '__main__':

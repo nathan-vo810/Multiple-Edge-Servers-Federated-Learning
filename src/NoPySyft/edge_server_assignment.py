@@ -2,7 +2,7 @@ import numpy as np
 import random
 import networkx as nx
 
-SEED = 1
+SEED = 2
 
 class EdgeServerAssignment:
 
@@ -12,10 +12,19 @@ class EdgeServerAssignment:
 				if assignment[i][j] == 1:
 					edge_servers[i].neighbor_servers.append(j)
 					edge_servers[j].neighbor_servers.append(i)
-					
+
 	
-	def random_edge_assignment(self, edge_servers):
-		G = nx.erdos_renyi_graph(len(edge_servers), p=0.5, seed=SEED)
+	def random_edge_assignment_erdos_renyi(self, edge_servers, p=0.5):
+		G = nx.erdos_renyi_graph(len(edge_servers), p=p, seed=SEED)
+		assignment = nx.to_numpy_array(G)
+
+		self.assign_neighbor_servers(edge_servers, assignment)
+
+		return assignment
+
+
+	def random_edge_assignment_barabasi_albert(self, edge_servers, m=5):
+		G = nx.barabasi_albert_graph(len(edge_servers), m=m, seed=SEED)
 		assignment = nx.to_numpy_array(G)
 
 		self.assign_neighbor_servers(edge_servers, assignment)
