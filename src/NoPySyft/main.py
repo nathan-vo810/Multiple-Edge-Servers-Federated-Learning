@@ -20,7 +20,7 @@ def parse_args():
 	parser.add_argument('--lr', dest='lr', help='Learning rate (default 1e-3)', default=1e-3)
 
 	parser.add_argument('--edges-exchange', dest='edges_exchange', help='Enable weight sharing between edge servers', type=int, default=1)
-	parser.add_argument('--edges-param', dest='edges_param', help='Parameter for edge servers graph')
+	parser.add_argument('--edges-param', dest='edges_param', help='Parameter for edge servers graph', type=float)
 	return parser.parse_args()
 
 def main(args):
