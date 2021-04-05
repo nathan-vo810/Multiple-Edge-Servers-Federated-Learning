@@ -228,13 +228,13 @@ class CloudServer:
 
 			if self.edges_exchange == 1:
 				edge_assignment_type = "erdos"
-				edge_assignment = EdgeServerAssignment().random_edge_assignment_erdos_renyi(self.edge_servers, p=edges_param)
+				edge_assignment = EdgeServerAssignment().random_edge_assignment_erdos_renyi(self.edge_servers, p=self.edges_param)
 			elif self.edges_exchange == 2:
 				edge_assignment_type = "barabasi"
-				edge_assignment = EdgeServerAssignment().random_edge_assignment_barabasi_albert(self.edge_servers, m=edges_param)
+				edge_assignment = EdgeServerAssignment().random_edge_assignment_barabasi_albert(self.edge_servers, m=self.edges_param)
 			elif self.edges_exchange == 3:
 				edge_assignment_type = "d-regular"
-				edge_assignment = EdgeServerAssignment().random_edge_assignment_degree_k(self.edge_servers, k=edges_param)
+				edge_assignment = EdgeServerAssignment().random_edge_assignment_degree_k(self.edge_servers, k=self.edges_param)
 			
 			print(edge_assignment)
 			alpha = self.calculate_constant_edge_weights(edge_assignment)

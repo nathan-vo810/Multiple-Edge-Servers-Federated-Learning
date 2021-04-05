@@ -28,7 +28,7 @@ def main(args):
 		trainer = Trainer(args.num_clients, args.lr, args.batchsize, args.epochs, args.global_update, MODEL_WEIGHT_DIR)
 		trainer.train()
 	else:
-		trainer = CloudServer(args.num_edges, args.num_clients, args.epochs, args.batchsize, args.lr, args.edge_update, args.global_update, args.edges_exchange, args.edge_params, MODEL_WEIGHT_DIR)
+		trainer = CloudServer(args.num_edges, args.num_clients, args.epochs, args.batchsize, args.lr, args.edge_update, args.global_update, args.edges_exchange, args.edges_param, MODEL_WEIGHT_DIR)
 		trainer.train()
 
 if __name__ == '__main__':
