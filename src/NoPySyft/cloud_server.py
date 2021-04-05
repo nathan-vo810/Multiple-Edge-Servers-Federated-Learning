@@ -16,10 +16,9 @@ from edge_server_assignment import EdgeServerAssignment
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(2)
 
-info_dir = "/content/drive/MyDrive/Multiple-Edge-Servers-Federated-Learning/src/NoPySyft/"
 
 class CloudServer:
-	def __init__(self, no_edge_servers, no_clients, num_epochs, batch_size, learning_rate, edge_update, global_update, edges_exchange, model_weight_dir):
+	def __init__(self, no_edge_servers, no_clients, num_epochs, batch_size, learning_rate, edge_update, global_update, edges_exchange, edges_param, model_weight_dir):
 		self.model = NNModel().to(device)
 
 		self.num_epochs = num_epochs
@@ -35,6 +34,7 @@ class CloudServer:
 		self.global_update = global_update
 
 		self.edges_exchange = edges_exchange
+		self.edges_param = edges_param
 
 		self.model_weight_dir = model_weight_dir
 
@@ -91,6 +91,10 @@ class CloudServer:
 		alpha = 2 / (eigenvalues[1] + eigenvalues[-1]) # sum of the largest and the next to smallest
 
 		return alpha
+
+
+	def save_training_loss(self, loss_dir):
+		np.save(f"{loss_dir}/{self.client_id}_loss.npy", np.array(self.model["loss"]))
 
 
 	def sub_models(self, model_A, model_B):
@@ -216,9 +220,22 @@ class CloudServer:
 		for client_id, client_data in train_data.items():
 			self.clients[client_id].data = client_data
 
-		if self.edges_exchange:
+		edge_assignment_type = None
+
+		if self.edges_exchange != 0:
 			print("---- [ASSIGNMENT] Link edge servers ----")
-			edge_assignment = EdgeServerAssignment().random_edge_assignment_barabasi_albert(self.edge_servers)
+			edge_assignment = None
+
+			if self.edges_exchange == 1:
+				edge_assignment_type = "erdos"
+				edge_assignment = EdgeServerAssignment().random_edge_assignment_erdos_renyi(self.edge_servers, p=edges_param)
+			elif self.edges_exchange == 2:
+				edge_assignment_type = "barabasi"
+				edge_assignment = EdgeServerAssignment().random_edge_assignment_barabasi_albert(self.edge_servers, m=edges_param)
+			elif self.edges_exchange == 3:
+				edge_assignment_type = "d-regular"
+				edge_assignment = EdgeServerAssignment().random_edge_assignment_degree_k(self.edge_servers, k=edges_param)
+			
 			print(edge_assignment)
 			alpha = self.calculate_constant_edge_weights(edge_assignment)
 		
@@ -228,14 +245,14 @@ class CloudServer:
 
 		# Assigning clients to edge server
 		print("---- [ASSIGNMENT] Link clients to edge servers ----")
-		client_assignment = ClientAssignment().load(info_dir + "client_assignment.npy", self.edge_servers)
+		client_assignment = ClientAssignment().load("client_assignment.npy", self.edge_servers)
 		# client_assignment = ClientAssignment().random_clients_servers_assign(self.clients, self.edge_servers)
 		# client_assignment = ClientAssignment().shortest_distance_clients_servers_assign(self.clients, self.edge_servers)
 		# client_assignment = ClientAssignment().multiple_edges_assignment(self.clients, self.edge_servers, k=3, alpha=0.0, no_local_epochs=5)
 		# client_assignment = ClientAssignment().random_multiple_edges_assignment(self.clients, self.edge_servers, k=3)
 		# client_assignment = ClientAssignment().k_nearest_edge_servers_assignment_fixed_size(self.clients, self.edge_servers, k = 3)
 
-		np.save(info_dir + "client_assignment.npy", client_assignment)
+		np.save("client_assignment.npy", client_assignment)
 
 		# Train
 		print("Start training...")
@@ -261,7 +278,7 @@ class CloudServer:
 					edge_server.model = self.average_models(models)
 
 				# Edge servers exchange weights
-				if self.edges_exchange == True:
+				if self.edges_exchange:
 					print("---- [UPDATE MODEL] Edge servers exchange weights ----")
 					self.distributed_edges_average(alpha)
 
@@ -286,7 +303,7 @@ class CloudServer:
 					best_acc = accuracy
 					self.save_model()
 
-				np.save(info_dir + "accuracy_logs_1.npy", accuracy_logs)		
+				np.save(edge_assignment_type + "accuracy_logs.npy", accuracy_logs)		
 				
 				# Clear models
 				for client in self.clients:
@@ -298,6 +315,13 @@ class CloudServer:
 				# Send the global model to edge servers
 				print("---- [DELIVER MODEL] Send global model to clients ----")
 				self.send_cloud_model_to_clients()
+
+		loss_dir = edge_assignment_type + "_train_loss"
+		if not os.path.exists(loss_dir):
+			os.makedirs(loss_dir)
+
+		for client in self.clients:
+			client.save_training_loss(loss_dir) 
 		
 		print("Finish training!")
 

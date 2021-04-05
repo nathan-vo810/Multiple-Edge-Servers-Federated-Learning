@@ -92,6 +92,10 @@ class ClientNode:
 				self.model["loss"].append(loss.item())
 				self.model["optim"].step()
 
+
+	def save_training_loss(self, loss_dir):
+		np.save(f"{loss_dir}/{self.client_id}_loss.npy", np.array(self.model["loss"]))
+
 		
 	def sum_model(self):
 		total = 0

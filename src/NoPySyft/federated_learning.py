@@ -28,7 +28,7 @@ class Trainer:
 	def generate_clients(self, no_clients):
 		clients = [] 
 		for i in range(no_clients):
-			client = ClientNode(self.learning_rate)
+			client = ClientNode(i, self.learning_rate)
 			clients.append(client)
 
 		return clients
