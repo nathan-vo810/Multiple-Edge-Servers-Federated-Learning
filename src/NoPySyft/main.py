@@ -11,6 +11,7 @@ def parse_args():
 	
 	parser.add_argument('--num-edge-servers', dest='num_edges', help='Number of edge servers (default 10)', type=int, default=10)
 	parser.add_argument('--num-clients', dest='num_clients', help='Number of client nodes (default 100)', type=int, default=100)
+	parser.add_argument('--clients-per-server', dest='clients_per_server', help='Number of clients per server', type=int, default=10)
 	
 	parser.add_argument('--edge-update', dest='edge_update', help='Number of epoch to update edge servers models (default 2)', type=int, default=2)
 	parser.add_argument('--global-update', dest='global_update', help='Number of epoch to update cloud model (default 4)', type=int, default=4)

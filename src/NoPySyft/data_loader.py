@@ -65,10 +65,13 @@ class MNISTDataLoader:
 
 
 	def distribute_in_shards(self, images, labels, no_clients):
+		num_shards = 600
+		shard_size = 60000/num_shards
+		
 		shards = []
-		for i in range(200):
-			start = i*300
-			end = start + 300
+		for i in range(num_shards):
+			start = i * shard_size
+			end = start + shard_size
 
 			shard_images = images[start:end]
 			shard_labels = labels[start:end]

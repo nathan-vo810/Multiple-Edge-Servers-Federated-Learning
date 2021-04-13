@@ -19,8 +19,6 @@ class ClientAssignment:
 
 
 	def random_clients_servers_assign(self, clients, edge_servers):
-		clients_per_server = len(clients)/len(edge_servers)
-
 		assignment = np.zeros((len(clients), len(edge_servers)), dtype=np.int8)
 
 		for client_id in range(len(clients)):
@@ -43,11 +41,10 @@ class ClientAssignment:
 		return np.array(distance_matrix)
 	
 
-	def shortest_distance_clients_servers_assign(self, clients, edge_servers):
+	def shortest_distance_clients_servers_assign(self, clients, edge_servers, clients_per_server):
 		distance_matrix = self.calculate_distance_matrix(clients, edge_servers)
 		distance_matrix = np.transpose(distance_matrix)
 
-		clients_per_server = len(clients) / len(edge_servers)
 		assignment = np.zeros((len(clients), len(edge_servers)), dtype=np.int8)
 		
 		for server_id in range(len(edge_servers)):

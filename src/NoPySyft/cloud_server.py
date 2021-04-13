@@ -18,7 +18,7 @@ torch.manual_seed(2)
 
 
 class CloudServer:
-	def __init__(self, no_edge_servers, no_clients, num_epochs, batch_size, learning_rate, edge_update, global_update, edges_exchange, edges_param, model_weight_dir):
+	def __init__(self, no_edge_servers, no_clients, clients_per_server, num_epochs, batch_size, learning_rate, edge_update, global_update, edges_exchange, edges_param, model_weight_dir):
 		self.model = NNModel().to(device)
 
 		self.num_epochs = num_epochs
@@ -37,6 +37,8 @@ class CloudServer:
 		self.edges_param = edges_param
 
 		self.model_weight_dir = model_weight_dir
+
+		self.clients_per_server = clients_per_server
 
 
 	def copy_model(self, source_model):
@@ -220,7 +222,7 @@ class CloudServer:
 		for client_id, client_data in train_data.items():
 			self.clients[client_id].data = client_data
 
-		edge_assignment_type = None
+		edge_assignment_type = ""
 
 		if self.edges_exchange != 0:
 			print("---- [ASSIGNMENT] Link edge servers ----")
@@ -246,9 +248,9 @@ class CloudServer:
 
 		# Assigning clients to edge server
 		print("---- [ASSIGNMENT] Link clients to edge servers ----")
-		client_assignment = ClientAssignment().load("client_assignment.npy", self.edge_servers)
-		# client_assignment = ClientAssignment().random_clients_servers_assign(self.clients, self.edge_servers)
-		# client_assignment = ClientAssignment().shortest_distance_clients_servers_assign(self.clients, self.edge_servers)
+		# client_assignment = ClientAssignment().load("client_assignment.npy", self.edge_servers)
+		client_assignment = ClientAssignment().random_clients_servers_assign(self.clients, self.edge_servers)
+		# client_assignment = ClientAssignment().shortest_distance_clients_servers_assign(self.clients, self.edge_servers, self.clients_per_server)
 		# client_assignment = ClientAssignment().multiple_edges_assignment(self.clients, self.edge_servers, k=3, alpha=0.0, no_local_epochs=5)
 		# client_assignment = ClientAssignment().random_multiple_edges_assignment(self.clients, self.edge_servers, k=3)
 		# client_assignment = ClientAssignment().k_nearest_edge_servers_assignment_fixed_size(self.clients, self.edge_servers, k = 3)
@@ -304,7 +306,7 @@ class CloudServer:
 					best_acc = accuracy
 					self.save_model()
 
-				np.save(edge_assignment_type + "accuracy_logs.npy", accuracy_logs)		
+				np.save(edge_assignment_type + "_accuracy_logs.npy", accuracy_logs)		
 				
 				# Clear models
 				for client in self.clients:
