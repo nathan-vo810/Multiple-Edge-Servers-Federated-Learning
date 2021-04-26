@@ -38,8 +38,8 @@ class MNISTDataLoader:
 	def prepare_federated_pathological_non_iid(self, no_clients):
 		'''
 		Sort the data by digit label
-		Divide it into 200 shards of size 300
-		Assign each of n clients 200/n shards
+		Divide it into 600 shards of size 100
+		Assign each of n clients 600/n shards
 		'''
 
 		data = self.train_data
@@ -66,7 +66,7 @@ class MNISTDataLoader:
 
 	def distribute_in_shards(self, images, labels, no_clients):
 		num_shards = 600
-		shard_size = 60000/num_shards
+		shard_size = 60000//num_shards
 		
 		shards = []
 		for i in range(num_shards):

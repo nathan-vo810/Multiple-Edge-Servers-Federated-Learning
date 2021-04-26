@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+random.seed(1)
+
 class ClientAssignment:
 
 	def load(self, path, edge_servers):
